@@ -52,13 +52,7 @@ func TestLoginIncorrect(t *testing.T)  {
 	}
 }
 
-func TestGetPlatform_8_3_16_1814_linux(t *testing.T) {
-
-	handler := getHandler()
-
-	ts := httptest.NewServer(http.HandlerFunc(handler))
-	defer ts.Close()
-
+func TestGetPlatform_8_3_18_1334_linux(t *testing.T) {
 	nicks := make(map[string]bool, 0)
 	nicks["platform83"] = true
 
@@ -69,13 +63,50 @@ func TestGetPlatform_8_3_16_1814_linux(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	conf := Downloader{
-		Login:     "user",
-		Password:  "user",
-		Nicks:     nicks,
-		BasePath: 	dir,
-		VersionFilter: "8.3.16.1814",
+		Login:         "user",
+		Password:      "user",
+		Nicks:         nicks,
+		BasePath:      dir,
+		VersionFilter: "8.3.18.1334",
 		DistribFilter: "deb64.tar.gz$",
 	}
+
+	files := GetPlatform(t, conf)
+	if len(files) != 1 {
+		t.Errorf("files must be 1")
+	}
+}
+
+func TestGetPlatform_8_3_18_1334_windows(t *testing.T) {
+	nicks := make(map[string]bool, 0)
+	nicks["platform83"] = true
+
+	dir, err := ioutil.TempDir("", "oneget")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	conf := Downloader{
+		Login:         "user",
+		Password:      "user",
+		Nicks:         nicks,
+		BasePath:      dir,
+		VersionFilter: "8.3.18.1334",
+		DistribFilter: "windows64",
+	}
+	files := GetPlatform(t, conf)
+	if len(files) != 1 {
+		t.Errorf("files must be 1")
+	}
+}
+
+func GetPlatform(t *testing.T, conf Downloader) []os.FileInfo {
+
+	handler := getHandler()
+
+	ts := httptest.NewServer(http.HandlerFunc(handler))
+	defer ts.Close()
 
 	releasesURL_bak := releasesURL
 	releasesURL = ts.URL + "/releases"
@@ -90,9 +121,7 @@ func TestGetPlatform_8_3_16_1814_linux(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if len(files) != 1 {
-		t.Errorf("files must be 4")
-	}
+	return files
 }
 
 func getHandler() func(w http.ResponseWriter, r *http.Request) {
@@ -180,6 +209,8 @@ func getHandler() func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "<a href=\"/version_file?%s&path=%s\\%s\\windows_%s.rar\"/>\n",
 				r.URL.RawQuery, nick, ver, ver)
 		} else if strings.HasSuffix(r.RequestURI, ".exe") {
+			fmt.Fprintf(w, "<a href=\"%s/public/file/get/id\"/>", releasesURL)
+		} else if strings.HasSuffix(r.RequestURI, ".rar") {
 			fmt.Fprintf(w, "<a href=\"%s/public/file/get/id\"/>", releasesURL)
 		} else if strings.HasSuffix(r.RequestURI, ".gz") {
 			fmt.Fprintf(w, "<a href=\"%s/public/file/get/id\"/>", releasesURL)
