@@ -12,6 +12,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -36,15 +37,17 @@ type FileToDownload struct {
 }
 
 type Downloader struct {
-	Login      string
-	Password   string
-	BasePath   string
-	StartDate  time.Time
-	Nicks      map[string]bool
-	httpClient *http.Client
-	urlCh      chan *FileToDownload
-	wg         sync.WaitGroup
-	logger     *log.Logger
+	Login         string
+	Password      string
+	BasePath      string
+	StartDate     time.Time
+	Nicks         map[string]bool
+	VersionFilter string
+	DistribFilter string
+	httpClient    *http.Client
+	urlCh         chan *FileToDownload
+	wg            sync.WaitGroup
+	logger        *log.Logger
 }
 
 func New(config *Downloader) *Downloader {
@@ -178,8 +181,8 @@ func (dr *Downloader) eachNode(node *html.Node, u string, f func(string, string,
 }
 
 func (dr *Downloader) findProject(_, href string, _ *html.Node) {
-
-	if (dr.Nicks == nil && strings.HasPrefix(href, projectHrefPrefix)) || dr.Nicks[strings.ToLower(href)] {
+	projectName := strings.ToLower(strings.TrimLeft(href, projectHrefPrefix))
+	if (dr.Nicks == nil && strings.HasPrefix(href, projectHrefPrefix)) || dr.Nicks[projectName] {
 		dr.wg.Add(1)
 		go dr.findLinks(releasesURL+href, dr.findVersion)
 	}
@@ -197,6 +200,18 @@ func (dr *Downloader) findVersion(_, href string, node *html.Node) {
 			return
 		}
 
+		if dr.VersionFilter != "" {
+			matched, err := regexp.MatchString(dr.VersionFilter, href)
+			if err != nil {
+				dr.handleError(err)
+				return
+			}
+			if !matched {
+				return
+			}
+		}
+
+
 		if vDate.After(dr.StartDate) {
 			dr.wg.Add(1)
 			go dr.findLinks(releasesURL+href, dr.findToDownloadLink)
@@ -211,28 +226,40 @@ func (dr *Downloader) findToDownloadLink(_, href string, _ *html.Node) {
 	lowerHref := strings.ToLower(href)
 	isRO := strings.Contains(lowerHref, "path=ro\\")
 
-	if strings.HasSuffix(lowerHref, "rar") ||
-		(strings.HasSuffix(lowerHref, "zip") && !isRO) ||
-		strings.HasSuffix(lowerHref, "gz") ||
-		strings.HasSuffix(lowerHref, "exe") ||
-		strings.HasSuffix(lowerHref, "msi") ||
-		strings.HasSuffix(lowerHref, "deb") ||
-		strings.HasSuffix(lowerHref, "rpm") ||
-		strings.HasSuffix(lowerHref, "epf") ||
-		strings.HasSuffix(lowerHref, "erf") {
+	if dr.DistribFilter == "" {
+		if strings.HasSuffix(lowerHref, "rar") ||
+			(strings.HasSuffix(lowerHref, "zip") && !isRO) ||
+			strings.HasSuffix(lowerHref, "gz") ||
+			strings.HasSuffix(lowerHref, "exe") ||
+			strings.HasSuffix(lowerHref, "msi") ||
+			strings.HasSuffix(lowerHref, "deb") ||
+			strings.HasSuffix(lowerHref, "rpm") ||
+			strings.HasSuffix(lowerHref, "epf") ||
+			strings.HasSuffix(lowerHref, "erf") {
 
-		dr.wg.Add(1)
-		dr.findLinks(releasesURL+href, dr.findFileServerLink)
+			dr.wg.Add(1)
+			dr.findLinks(releasesURL+href, dr.findFileServerLink)
 
-	} else if strings.HasSuffix(lowerHref, "txt") ||
-		strings.HasSuffix(lowerHref, "pdf") ||
-		strings.HasSuffix(lowerHref, "html") ||
-		strings.HasSuffix(lowerHref, "htm") ||
-		(strings.HasSuffix(lowerHref, "zip") && isRO) {
-
-		dr.addFileToChannel(href, releasesURL+href)
-
+		} else if strings.HasSuffix(lowerHref, "txt") ||
+			strings.HasSuffix(lowerHref, "pdf") ||
+			strings.HasSuffix(lowerHref, "html") ||
+			strings.HasSuffix(lowerHref, "htm") ||
+			(strings.HasSuffix(lowerHref, "zip") && isRO) {
+				dr.addFileToChannel(href, releasesURL+href)
+			}
+	}else {
+		matched, err := regexp.MatchString(dr.DistribFilter, href)
+		if err != nil {
+			dr.handleError(err)
+			return
+		}
+		if matched {
+			dr.wg.Add(1)
+			dr.findLinks(releasesURL+href, dr.findFileServerLink)
+		}
 	}
+
+
 
 }
 

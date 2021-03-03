@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strings"
 
 	dloader "TheDemonCat/oneget/downloader"
 	"github.com/urfave/cli/v2"
@@ -34,6 +35,10 @@ func setFlags() []cli.Flag {
 			Usage:    "Фильтр версий по номеру (регулярное выражение)",
 		},
 			&cli.StringFlag{
+			Name:     "distrib-filter",
+			Usage:    "Дополнительный фильтр пакетов (регулярное выражение)",
+		},
+			&cli.StringFlag{
 			Name:     "path",
 			DefaultText: "./downloads",
 			Usage:    "Путь к каталогу выгрузки",
@@ -54,11 +59,13 @@ func main() {
 		Flags: setFlags(),
 		Action: func(c *cli.Context) error {
 			downloaderConfig := dloader.Downloader{
-				Login:    		c.String("user"),
-				Password: 		c.String("pwd"),
-				BasePath: 		c.String("path"),
-				StartDate : 	StartDate(c.String("startDate")),
-				Nicks  :    	Nicks(c.String("nicks")),
+				Login 			: c.String("user"),
+				Password 		:  c.String("pwd"),
+				BasePath 		:  c.String("path"),
+				StartDate 		: StartDate(c.String("startDate")),
+				Nicks  			: Nicks(strings.ToLower(c.String("nicks"))),
+				VersionFilter	: c.String("version-filter"),
+				DistribFilter	: c.String("distrib-filter"),
 			}
 
 			downloader := dloader.New(&downloaderConfig)
