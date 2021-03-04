@@ -1,0 +1,67 @@
+project_name: oneget
+
+env:
+  - GO111MODULE=on
+#  - GOPROXY=https://goproxy.io
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      #      - 386
+      - amd64
+#      - arm
+#      - arm64
+dist: dist
+
+checksum:
+  name_template: '{{ .ProjectName }}_checksums.txt'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - Merge pull request
+      - Merge branch
+dockers:
+  - image_templates:
+      - 'demoncat/{{.ProjectName}}:{{ .Tag }}'
+      - 'demoncat/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
+      - 'demoncat/{{.ProjectName}}:latest'
+      - 'ghcr.io/thedemoncat/{{.ProjectName}}:{{ .Tag }}'
+      - 'ghcr.io/thedemoncat/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
+      - 'ghcr.io/thedemoncat/{{.ProjectName}}:latest'
+    dockerfile: Dockerfile
+    binaries:
+      - oneget
+    build_flag_templates:
+      - "--label=org.label-schema.schema-version=1.0"
+      - "--label=org.label-schema.version={{.Version}}"
+      - "--label=org.label-schema.name={{.ProjectName}}"
+      - "--label=com.github.actions.name={{.ProjectName}}"
+      - "--label=com.github.actions.description=Console app for download packages from releases.1c.ru"
+      - "--label=com.github.actions.icon=terminal"
+      - "--label=com.github.actions.color=blue"
+      - "--label=repository=http://github.com/TheDemonCat/oneget"
+      - "--label=homepage=http://github.com/TheDemonCat/oneget"
+      - "--label=maintainer=Ruslan Zhdanov"
+archives:
+  - name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      386: i386
+      amd64: x86_64
+    format_overrides:
+      - goos: windows
+        format: zip
+
