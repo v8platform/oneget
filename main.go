@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"fmt"
 
 	dloader "TheDemonCat/oneget/downloader"
 	"github.com/urfave/cli/v2"
