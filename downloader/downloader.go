@@ -12,6 +12,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -316,7 +317,7 @@ func (dr *Downloader) fileNameFromUrl(rawUrl string) (string, string, error) {
 
 func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, bool) {
 
-	fullpath := dr.BasePath + fileToDownload.path + fileToDownload.name
+	fullpath := filepath.Join(dr.BasePath, strings.ToLower(fileToDownload.path),  fileToDownload.name)
 	fileInfo, err := os.Stat(fullpath)
 	if os.IsExist(err) {
 
@@ -331,7 +332,7 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 			return nil, false
 		}
 
-		err = os.MkdirAll(dr.BasePath+fileToDownload.path, os.ModeDir)
+		err = os.MkdirAll(filepath.Join(dr.BasePath, fileToDownload.path), os.ModeDir)
 		if err != nil {
 			return nil, false
 		}
