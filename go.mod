@@ -1,4 +1,4 @@
-module TheDemonCat/oneget
+module github.com/v8platform/oneget
 
 go 1.16
 
