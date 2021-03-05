@@ -50,8 +50,8 @@ dockers:
       - "--label=com.github.actions.description=Console app for download packages from releases.1c.ru"
       - "--label=com.github.actions.icon=terminal"
       - "--label=com.github.actions.color=blue"
-      - "--label=repository=http://github.com/TheDemonCat/oneget"
-      - "--label=homepage=http://github.com/TheDemonCat/oneget"
+      - "--label=repository=http://github.com/v8platform/oneget"
+      - "--label=homepage=http://github.com/v8platform/oneget"
       - "--label=maintainer=Ruslan Zhdanov"
 archives:
   - name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
