@@ -82,7 +82,11 @@ func (dr *Downloader) Get() ([]os.FileInfo, error) {
 	}()
 
 	for fileToDownload := range dr.urlCh {
-		if fileInfo, ok := dr.downloadFile(fileToDownload); ok {
+		fileInfo, err := dr.downloadFile(fileToDownload)
+		if err != nil {
+			return nil, err
+		}
+		if  fileInfo != nil  {
 			files = append(files, fileInfo)
 		}
 	}
@@ -315,31 +319,37 @@ func (dr *Downloader) fileNameFromUrl(rawUrl string) (string, string, error) {
 	return fileName.String(), filePath.String(), nil
 }
 
-func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, bool) {
+func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, error) {
 
-	fullpath := filepath.Join(dr.BasePath, strings.ToLower(fileToDownload.path),  fileToDownload.name)
-	fileInfo, err := os.Stat(fullpath)
+	workDir := filepath.Join(dr.BasePath, strings.ToLower(fileToDownload.path))
+	fileName := filepath.Join(workDir,  fileToDownload.name)
+	fileInfo, err := os.Stat(fileName)
 	if os.IsExist(err) {
 
-		return fileInfo, true
+		return fileInfo, nil
 
 	} else if os.IsNotExist(err) {
+
+		if _, err := os.Stat(workDir); os.IsNotExist(err) {
+			err = os.MkdirAll(filepath.Join(workDir), 0777)
+			if err != nil {
+				return nil, err
+			}
+			// https://wenzr.wordpress.com/2018/03/27/go-file-permissions-on-unix/
+			os.Chmod (workDir , 0777)
+		}
+		dr.handleOutput(fmt.Sprintf("Workspace directory: %s\n", workDir))
 
 		dr.handleOutput(fmt.Sprintf("Getting a file from url: %s\n", fileToDownload.url))
 		acquireSemaConnections()
 		resp, err := dr.httpClient.Get(fileToDownload.url)
 		if err != nil {
-			return nil, false
+			return nil, err
 		}
 
-		err = os.MkdirAll(filepath.Join(dr.BasePath, fileToDownload.path), os.ModeDir)
+		f, err := os.Create(fileName + tempFileSuffix)
 		if err != nil {
-			return nil, false
-		}
-
-		f, err := os.Create(fullpath + tempFileSuffix)
-		if err != nil {
-			return nil, false
+			return nil, err
 		}
 
 		defer resp.Body.Close()
@@ -347,30 +357,30 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 		_, err = io.Copy(f, resp.Body)
 		releaseSemaConnections()
 		if err != nil {
-			return nil, false
+			return nil, err
 		}
 		f.Close()
 
 		dr.handleOutput(fmt.Sprintf("End of receiving file by url: %s\n", fileToDownload.url))
-		dr.handleOutput(fmt.Sprintf("File saved to: %s\n", fullpath))
+		dr.handleOutput(fmt.Sprintf("File saved to: %s\n", fileName))
 
-		err = os.Rename(fullpath+tempFileSuffix, fullpath)
+		err = os.Rename(fileName+tempFileSuffix, fileName)
 		if err != nil {
-			return nil, false
+			return nil, err
 		}
 
-		fileInfo, err := os.Stat(fullpath)
+		fileInfo, err := os.Stat(fileName)
 		if err != nil {
-			return nil, false
+			return nil, err
 		}
 
-		return fileInfo, true
+		return fileInfo, nil
 
 	} else if err != nil {
 
 	}
 
-	return nil, false
+	return nil, nil
 
 }
 
