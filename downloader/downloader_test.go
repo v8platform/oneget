@@ -150,42 +150,6 @@ func getHandler() func(w http.ResponseWriter, r *http.Request) {
 				"<td class=\"dateColumn\">29.12.15</td>",
 				"</tr>")
 			fmt.Fprintln(w, "</table>")
-		} else if strings.Contains(r.RequestURI, "project/Platform83") {
-			fmt.Fprintln(w, "<table id=\"versionsTable\" class=\"customTable table-hover\">")
-			fmt.Fprintln(w,
-				"<tr>",
-				"<td class=\"versionColumn\"><a href=\"/version_files?nick=Platform83&ver=1.0\"/></td>",
-				"<td class=\"dateColumn\">27.04.17</td>",
-				"</tr>")
-			fmt.Fprintln(w,
-				"<tr>",
-				"<td class=\"versionColumn\"><a href=\"/version_files?nick=test2&ver=1.1\"/></td>",
-				"<td class=\"dateColumn\">01.09.16</td>",
-				"</tr>")
-			fmt.Fprintln(w,
-				"<tr>",
-				"<td class=\"versionColumn\"><a href=\"/version_files?nick=test2&ver=1.2\"/></td>",
-				"<td class=\"dateColumn\">29.12.15</td>",
-				"</tr>")
-			fmt.Fprintln(w, "</table>")
-		} else if strings.Contains(r.RequestURI, "project/Platform83") {
-			fmt.Fprintln(w, "<table id=\"versionsTable\" class=\"customTable table-hover\">")
-			fmt.Fprintln(w,
-				"<tr>",
-				"<td class=\"versionColumn\"><a href=\"/version_files?nick=test3&ver=1.0\"/></td>",
-				"<td class=\"dateColumn\">27.04.17</td>",
-				"</tr>")
-			fmt.Fprintln(w,
-				"<tr>",
-				"<td class=\"versionColumn\"><a href=\"/version_files?nick=test3&ver=1.1\"/></td>",
-				"<td class=\"dateColumn\">01.09.16</td>",
-				"</tr>")
-			fmt.Fprintln(w,
-				"<tr>",
-				"<td class=\"versionColumn\"><a href=\"/version_files?nick=test3&ver=1.2\"/></td>",
-				"<td class=\"dateColumn\">29.12.15</td>",
-				"</tr>")
-			fmt.Fprintln(w, "</table>")
 		} else if r.URL.Path == "/releases/version_files" {
 			query, err := url.ParseQuery(r.URL.RawQuery)
 			if err != nil {
