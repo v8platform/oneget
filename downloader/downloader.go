@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/v8platform/oneget/unpacker"
 	"golang.org/x/net/html"
 	"io"
 	"io/ioutil"
@@ -45,10 +46,14 @@ type Downloader struct {
 	Nicks         map[string]bool
 	VersionFilter string
 	DistribFilter string
+	Extract       bool
+	ExtractDir    string
+	Rename		  bool
 	httpClient    *http.Client
 	urlCh         chan *FileToDownload
 	wg            sync.WaitGroup
 	logger        *log.Logger
+
 }
 
 func New(config *Downloader) *Downloader {
@@ -359,7 +364,38 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 		if err != nil {
 			return nil, err
 		}
+
 		f.Close()
+
+		if dr.Extract {
+			unpackerConf := &unpacker.Unpacker{
+				Logger: dr.logger,
+			}
+			unpacker := unpacker.New(unpackerConf)
+			unpacker.Extract(f.Name(), filepath.Join(workDir, dr.ExtractDir))
+
+			if dr.Rename {
+				files, err := ioutil.ReadDir(".")
+				if err != nil {
+					dr.handleOutput(fmt.Sprintf("Error read directory: %s\n", err))
+				}
+
+				for _, file := range files {
+					if file.IsDir() {
+						continue
+					}
+					oldName := file.Name()
+					newName := unpacker.GetAliasesDistrib(oldName)
+					err := os.Rename(
+							filepath.Join(workDir, dr.ExtractDir, oldName),
+							filepath.Join(workDir, dr.ExtractDir, newName))
+					if err != nil {
+						log.Fatal(err)
+					}
+				}
+
+			}
+		}
 
 		dr.handleOutput(fmt.Sprintf("End of receiving file by url: %s\n", fileToDownload.url))
 		dr.handleOutput(fmt.Sprintf("File saved to: %s\n", fileName))

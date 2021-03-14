@@ -48,7 +48,7 @@ func setFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:        "path",
-			DefaultText: "./downloads",
+			DefaultText: "downloads",
 			Usage:       "Путь к каталогу выгрузки",
 		},
 		&cli.StringFlag{
@@ -56,6 +56,25 @@ func setFlags() []cli.Flag {
 			DefaultText: "oneget.logs",
 			Value:       "oneget.logs",
 			Usage:       "Файл лога загрузки",
+		},
+		&cli.BoolFlag{
+			Name: "extract",
+			Value: false,
+			Usage: "Распаковывать дистрибутив",
+		},
+		&cli.StringFlag{
+			Name:       	"extractPath",
+			DefaultText:	"pack",
+			Usage: 			"Каталог распаковки дистрибутива",
+		},
+		&cli.BoolFlag{
+			Name: "rename",
+			Aliases: []string{"sl"},
+			Value: false,
+			Usage: `Переименовывать дистрибутивы при распаковке. 
+				Примеры: 
+					1c-enterprise-8.3.18.1334-client_8.3.18-1334_amd64.deb -> client-8.3.18.1334.deb
+					1c-enterprise83-server_8.3.16-1876_amd64.deb -> server_8.3.16-1876.deb`,
 		},
 	}
 }
@@ -75,6 +94,9 @@ func main() {
 				Nicks:         Nicks(strings.ToLower(c.String("nicks"))),
 				VersionFilter: c.String("version-filter"),
 				DistribFilter: c.String("distrib-filter"),
+				Extract:  	   c.Bool("extract"),
+				ExtractDir:    c.String("extractDit"),
+				Rename: c.Bool("rename"),
 			}
 
 			downloader := dloader.New(&downloaderConfig)
