@@ -375,16 +375,13 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 			unpacker.Extract(f.Name(), filepath.Join(workDir, dr.ExtractDir))
 
 			if dr.Rename {
-				files, err := ioutil.ReadDir(".")
+				files, _ := filepath.Glob(workDir)
 				if err != nil {
 					dr.handleOutput(fmt.Sprintf("Error read directory: %s\n", err))
 				}
 
 				for _, file := range files {
-					if file.IsDir() {
-						continue
-					}
-					oldName := file.Name()
+					oldName := file
 					newName := unpacker.GetAliasesDistrib(oldName)
 					err := os.Rename(
 							filepath.Join(workDir, dr.ExtractDir, oldName),
