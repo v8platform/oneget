@@ -1,11 +1,8 @@
 package downloader
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,35 +12,27 @@ import (
 	"time"
 )
 
-func init() {
-	SetLogOutput(bytes.NewBuffer(nil))
-}
-
-func SetLogOutput(out io.Writer) {
-	logOutput = out
-}
-
 func TestNewDownloader(t *testing.T) {
 	startDate, err := time.Parse("02.01.2006", "20.01.2020")
 	if err != nil {
-		log.Fatal(err)
+		t.Error(err)
 	}
 
-	conf := Downloader{
+	conf := Config{
 		Login:      "user",
 		Password:   "user",
 		StartDate:  startDate,
 	}
-	New(&conf)
+	New(conf)
 }
 
 func TestLoginIncorrect(t *testing.T)  {
-	conf := Downloader{
+	conf := Config{
 		Login:      "user",
 		Password:   "user",
 		StartDate:  time.Now(),
 	}
-	downldr := New(&conf)
+	downldr := New(conf)
 	_, err := downldr.Get()
 
 	if !(strings.Contains(err.Error(), "Incorrect login or password") ||
@@ -58,11 +47,11 @@ func TestGetPlatform_8_3_18_1334_linux(t *testing.T) {
 
 	dir, err := ioutil.TempDir("", "oneget")
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
 
-	conf := Downloader{
+	conf := Config{
 		Login:         "user",
 		Password:      "user",
 		Nicks:         nicks,
@@ -83,11 +72,11 @@ func TestGetPlatform_8_3_18_1334_windows(t *testing.T) {
 
 	dir, err := ioutil.TempDir("", "oneget")
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 	defer os.RemoveAll(dir)
 
-	conf := Downloader{
+	conf := Config{
 		Login:         "user",
 		Password:      "user",
 		Nicks:         nicks,
@@ -101,9 +90,9 @@ func TestGetPlatform_8_3_18_1334_windows(t *testing.T) {
 	}
 }
 
-func GetPlatform(t *testing.T, conf Downloader) []os.FileInfo {
+func GetPlatform(t *testing.T, conf Config) []os.FileInfo {
 
-	handler := getHandler()
+	handler := getHandler(t)
 
 	ts := httptest.NewServer(http.HandlerFunc(handler))
 	defer ts.Close()
@@ -116,7 +105,7 @@ func GetPlatform(t *testing.T, conf Downloader) []os.FileInfo {
 
 	defer func() { releasesURL = releasesURL_bak; loginURL = loginURL_bak }()
 
-	downldr := New(&conf)
+	downldr := New(conf)
 	files, err := downldr.Get()
 	if err != nil {
 		t.Error(err)
@@ -124,7 +113,7 @@ func GetPlatform(t *testing.T, conf Downloader) []os.FileInfo {
 	return files
 }
 
-func getHandler() func(w http.ResponseWriter, r *http.Request) {
+func getHandler(t *testing.T) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.RequestURI == "/login/rest/public/ticket/get" {
 			fmt.Fprint(w, "{\"ticket\": \"Hello\"}")
@@ -153,7 +142,7 @@ func getHandler() func(w http.ResponseWriter, r *http.Request) {
 		} else if r.URL.Path == "/releases/version_files" {
 			query, err := url.ParseQuery(r.URL.RawQuery)
 			if err != nil {
-				log.Fatal(err)
+				t.Fatal(err)
 			}
 
 			nick := query.Get("nick")

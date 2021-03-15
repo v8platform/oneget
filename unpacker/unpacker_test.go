@@ -27,11 +27,10 @@ func TestUnpackTarGz(t *testing.T) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	unpackerConf := Unpacker{}
-	unpacker := New(&unpackerConf)
+
 	for _, file := range files {
 		fileName := file.Name()
-		unpacker.Extract(filepath.Join("test", "fixtures","linux", "client", fileName), tempDir)
+		Extract(filepath.Join("test", "fixtures","linux", "client", fileName), tempDir)
 
 		fileGZ := fileName[:len(fileName) - len(filepath.Ext(fileName))]
 		dirName := fileGZ[:len(fileGZ) - len(filepath.Ext(fileGZ))]
@@ -74,9 +73,9 @@ func TestNameAliases_8_3_18_1334(t *testing.T) {
 }
 
 func checkAliases(t *testing.T, distrNames []string) {
-	unpacker := New(&Unpacker{})
+
 	for _, distrName := range distrNames {
-		result := unpacker.GetAliasesDistrib(distrName)
+		result := GetAliasesDistrib(distrName)
 		fmt.Println(result)
 		regexp := regexp.MustCompile(`^(.*)-([\d\.\d\.\d*\.\d*]*-[\d]*).(.*)$`)
 		find := regexp.ReplaceAllString(result, `$1-VERSION.$3`)

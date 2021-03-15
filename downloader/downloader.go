@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/khorevaa/logos"
 	"github.com/v8platform/oneget/unpacker"
 	"golang.org/x/net/html"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -30,7 +30,8 @@ const fileServerHrefPrefix = "/public/file/get"
 const tempFileSuffix = ".d1c"
 
 var semaMaxConnections = make(chan struct{}, 10)
-var logOutput = io.Writer(os.Stdout)
+
+var log = logos.New("github.com/v8platform/oneget/downloader").Sugar()
 
 type FileToDownload struct {
 	url  string
@@ -38,7 +39,7 @@ type FileToDownload struct {
 	name string
 }
 
-type Downloader struct {
+type Config struct {
 	Login         string
 	Password      string
 	BasePath      string
@@ -47,24 +48,29 @@ type Downloader struct {
 	VersionFilter string
 	DistribFilter string
 	Extract       bool
-	ExtractDir    string
-	Rename		  bool
-	httpClient    *http.Client
-	urlCh         chan *FileToDownload
-	wg            sync.WaitGroup
-	logger        *log.Logger
-
+	ExtractPath   string
+	Rename        bool
 }
 
-func New(config *Downloader) *Downloader {
+
+type Downloader struct {
+	Config
+	httpClient *http.Client
+	urlCh      chan *FileToDownload
+	wg         sync.WaitGroup
+}
+
+func New(config Config) *Downloader {
 
 	cj, _ := cookiejar.New(nil)
-	config.httpClient = &http.Client{
-		Jar: cj,
-	}
 
-	config.logger = log.New(logOutput, "", log.LstdFlags)
-	return config
+	return &Downloader{
+		Config: config,
+		httpClient: &http.Client{
+			Jar: cj,
+		},
+		wg: sync.WaitGroup{},
+	}
 
 }
 
@@ -91,7 +97,7 @@ func (dr *Downloader) Get() ([]os.FileInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-		if  fileInfo != nil  {
+		if fileInfo != nil {
 			files = append(files, fileInfo)
 		}
 	}
@@ -192,6 +198,7 @@ func (dr *Downloader) eachNode(node *html.Node, u string, f func(string, string,
 
 func (dr *Downloader) findProject(_, href string, _ *html.Node) {
 	projectName := strings.ToLower(strings.TrimLeft(href, projectHrefPrefix))
+	log.Debugf("Finding project in href %s", projectName)
 	if (dr.Nicks == nil && strings.HasPrefix(href, projectHrefPrefix)) || dr.Nicks[projectName] {
 		dr.wg.Add(1)
 		go dr.findLinks(releasesURL+href, dr.findVersion)
@@ -206,21 +213,22 @@ func (dr *Downloader) findVersion(_, href string, node *html.Node) {
 		vDateRaw := strings.Trim(node.Parent.NextSibling.NextSibling.FirstChild.Data, " \n")
 		vDate, err := time.Parse("02.01.06", vDateRaw)
 		if err != nil {
-			dr.handleError(err)
+			//dr.handleError(err)
 			return
 		}
 
 		if dr.VersionFilter != "" {
+			log.Debugf("Filtering href %s by %s", href, dr.VersionFilter)
 			matched, err := regexp.MatchString(dr.VersionFilter, href)
 			if err != nil {
 				dr.handleError(err)
 				return
 			}
 			if !matched {
+				log.Debugf("Href %s SKIP", href)
 				return
 			}
 		}
-
 
 		if vDate.After(dr.StartDate) {
 			dr.wg.Add(1)
@@ -255,9 +263,9 @@ func (dr *Downloader) findToDownloadLink(_, href string, _ *html.Node) {
 			strings.HasSuffix(lowerHref, "html") ||
 			strings.HasSuffix(lowerHref, "htm") ||
 			(strings.HasSuffix(lowerHref, "zip") && isRO) {
-				dr.addFileToChannel(href, releasesURL+href)
-			}
-	}else {
+			dr.addFileToChannel(href, releasesURL+href)
+		}
+	} else {
 		matched, err := regexp.MatchString(dr.DistribFilter, href)
 		if err != nil {
 			dr.handleError(err)
@@ -268,8 +276,6 @@ func (dr *Downloader) findToDownloadLink(_, href string, _ *html.Node) {
 			dr.findLinks(releasesURL+href, dr.findFileServerLink)
 		}
 	}
-
-
 
 }
 
@@ -327,7 +333,7 @@ func (dr *Downloader) fileNameFromUrl(rawUrl string) (string, string, error) {
 func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, error) {
 
 	workDir := filepath.Join(dr.BasePath, strings.ToLower(fileToDownload.path))
-	fileName := filepath.Join(workDir,  fileToDownload.name)
+	fileName := filepath.Join(workDir, fileToDownload.name)
 	fileInfo, err := os.Stat(fileName)
 	if os.IsExist(err) {
 
@@ -341,11 +347,11 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 				return nil, err
 			}
 			// https://wenzr.wordpress.com/2018/03/27/go-file-permissions-on-unix/
-			os.Chmod (workDir , 0777)
+			os.Chmod(workDir, 0777)
 		}
-		dr.handleOutput(fmt.Sprintf("Workspace directory: %s\n", workDir))
+		log.Debugf("Workspace directory: %s", workDir)
+		log.Debugf("Getting a file from url: %s", fileToDownload.url)
 
-		dr.handleOutput(fmt.Sprintf("Getting a file from url: %s\n", fileToDownload.url))
 		acquireSemaConnections()
 		resp, err := dr.httpClient.Get(fileToDownload.url)
 		if err != nil {
@@ -367,39 +373,40 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 
 		f.Close()
 
-		if dr.Extract {
-			unpackerConf := &unpacker.Unpacker{
-				Logger: dr.logger,
-			}
-			unpacker := unpacker.New(unpackerConf)
-			unpacker.Extract(f.Name(), filepath.Join(workDir, dr.ExtractDir))
-
-			if dr.Rename {
-				files, _ := filepath.Glob(workDir)
-				if err != nil {
-					dr.handleOutput(fmt.Sprintf("Error read directory: %s\n", err))
-				}
-
-				for _, file := range files {
-					oldName := file
-					newName := unpacker.GetAliasesDistrib(oldName)
-					err := os.Rename(
-							filepath.Join(workDir, dr.ExtractDir, oldName),
-							filepath.Join(workDir, dr.ExtractDir, newName))
-					if err != nil {
-						log.Fatal(err)
-					}
-				}
-
-			}
-		}
-
-		dr.handleOutput(fmt.Sprintf("End of receiving file by url: %s\n", fileToDownload.url))
-		dr.handleOutput(fmt.Sprintf("File saved to: %s\n", fileName))
+		log.Debugf("End of receiving file by url: %s", fileToDownload.url)
+		log.Debugf("File saved to: %s", fileName)
+		log.Debugf("End of receiving file by url: %s", fileToDownload.url)
+		log.Debugf("File saved to: %s", fileName)
 
 		err = os.Rename(fileName+tempFileSuffix, fileName)
 		if err != nil {
 			return nil, err
+		}
+
+		if dr.Extract {
+			extractDir := dr.ExtractPath
+			unpacker.Extract(fileName, extractDir)
+
+			if dr.Rename {
+				files, err := ioutil.ReadDir(extractDir)
+				if err != nil {
+					return nil, err
+				}
+				for _, file := range files {
+					if file.IsDir() {
+						continue
+					}
+					oldName := file.Name()
+					newName := unpacker.GetAliasesDistrib(oldName)
+					err := os.Rename(
+							filepath.Join(extractDir, oldName),
+							filepath.Join(extractDir, newName))
+					if err != nil {
+						return nil, err
+					}
+				}
+
+			}
 		}
 
 		fileInfo, err := os.Stat(fileName)
@@ -410,7 +417,7 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 		return fileInfo, nil
 
 	} else if err != nil {
-
+		log.Debugf("Error download files: %s", err)
 	}
 
 	return nil, nil
@@ -418,13 +425,10 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 }
 
 func (dr *Downloader) handleError(err error) {
-	_ = fmt.Errorf("%s", err)
-	dr.logger.Println(err)
-}
-
-func (dr *Downloader) handleOutput(text string) {
-	fmt.Print(text)
-	dr.logger.Print(text)
+	if err == nil {
+		return
+	}
+	log.Error(err.Error())
 }
 
 func acquireSemaConnections() {
@@ -433,12 +437,4 @@ func acquireSemaConnections() {
 
 func releaseSemaConnections() {
 	_ = <-semaMaxConnections
-}
-
-func (dr *Downloader) LogOutput() io.Writer {
-	return logOutput
-}
-
-func (dr *Downloader) SetLogOutput(out io.Writer) {
-	logOutput = out
 }

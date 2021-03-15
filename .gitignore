@@ -1,10 +1,16 @@
 *.exe
 *.gz
 *.zip
+*.deb
+*.tar.gz
 oneget
 
+logs
+downloads
 dist
 .idea
 *.logs
 
 *.d1c
+pack
+
