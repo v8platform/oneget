@@ -5,10 +5,11 @@ import (
 	"log"
 	"regexp"
 )
-
 type Unpacker struct {
 	Logger        *log.Logger
 }
+
+var re = regexp.MustCompile(`^1c-enterprise[\d]*-[\d\.\d\.\d*\.\d*]*-*([a-z-]*)_([\d\.\d\.\d*\.\d*-]*)_(amd64)\.([a-z]*)$`)
 
 func New(config *Unpacker) *Unpacker {
 	return config
@@ -23,7 +24,6 @@ func (u *Unpacker) Extract(filename string, destinatin string) error {
 }
 
 func (u *Unpacker) GetAliasesDistrib(fileName string) string {
-	regexp := regexp.MustCompile(`^1c-enterprise[\d]*-[\d\.\d\.\d*\.\d*]*-*([a-z-]*)_([\d\.\d\.\d*\.\d*-]*)_(amd64)\.([a-z]*)$`)
-	resultFileName := regexp.ReplaceAllString(fileName, `$1-$2.$4`)
+	resultFileName := re.ReplaceAllString(fileName, `$1-$2.$4`)
 	return resultFileName
 }
