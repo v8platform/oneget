@@ -102,6 +102,11 @@ func main() {
 
 			return err
 		},
+		Metadata: map[string]interface{}{
+			"GET_ARGS": map[string]string{
+				"RELEASE": "Описание релиза в формате platform83@8.3.18.1334",
+			},
+		},
 	}
 
 	for _, command := range cmd.Commands {
