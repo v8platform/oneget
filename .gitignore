@@ -3,6 +3,8 @@
 *.zip
 oneget
 
+logs
+downloads
 dist
 .idea
 *.logs

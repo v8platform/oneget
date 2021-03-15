@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"github.com/khorevaa/logos"
+	"github.com/v8platform/oneget/cmd"
+
 	"os"
 	"strings"
 
@@ -16,6 +18,8 @@ var (
 	date    = ""
 	builtBy = ""
 )
+
+var log = logos.New("github.com/v8platform/oneget").Sugar()
 
 func setFlags() []cli.Flag {
 	return []cli.Flag{
@@ -51,6 +55,11 @@ func setFlags() []cli.Flag {
 			DefaultText: "./downloads",
 			Usage:       "Путь к каталогу выгрузки",
 		},
+		&cli.BoolFlag{
+			Name:    "debug",
+			EnvVars: []string{"ONEGET_DEBUG"},
+			Usage:   "Режим отладки приложения",
+		},
 		&cli.StringFlag{
 			Name:        "logs",
 			DefaultText: "oneget.logs",
@@ -67,7 +76,7 @@ func main() {
 		Version: buildVersion(),
 		Flags:   setFlags(),
 		Action: func(c *cli.Context) error {
-			downloaderConfig := dloader.Downloader{
+			downloaderConfig := dloader.Config{
 				Login:         c.String("user"),
 				Password:      c.String("pwd"),
 				BasePath:      c.String("path"),
@@ -77,24 +86,32 @@ func main() {
 				DistribFilter: c.String("distrib-filter"),
 			}
 
-			downloader := dloader.New(&downloaderConfig)
-			fileLogs, err := LogFile(c.String("logs"))
-			if err != nil {
-				handleError(err, "Ошибка записи файла логирования")
-			}
-			downloader.SetLogOutput(fileLogs)
-			_, err = downloader.Get()
-			if err != nil {
-				log.Fatal(err)
+			debug := c.Bool("debug")
+
+			if debug {
+				logos.SetLevel("github.com/v8platform/oneget", logos.DebugLevel)
 			}
 
-			return nil
+			downloader := dloader.New(downloaderConfig)
+
+			files, err := downloader.Get()
+
+			if err == nil {
+				log.Infof("Downloaded <%d> files", len(files))
+			}
+
+			return err
 		},
 	}
 
+	for _, command := range cmd.Commands {
+		app.Commands = append(app.Commands, command.Cmd())
+	}
+
 	err := app.Run(os.Args)
+	defer log.Sync()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 }
 
