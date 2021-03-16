@@ -45,37 +45,34 @@ func (c *getCmd) run(ctx *cli.Context) error {
 	releases := getMapFromStrings(c.releases, "@", "latest")
 	filters := getMapFromStrings(c.Filter.Value(), "=", "")
 
-	var downloads []downloadConfig
+	var downloads []dloader.GetConfig
 	for project, version := range releases {
-		downloads = append(downloads, downloadConfig{
-			project,
-			version,
-			filters[project],
+		downloads = append(downloads, dloader.GetConfig{
+			BasePath: c.BaseDir,
+			Project:  project,
+			Version:  version,
+			Filter:   filters[project],
 		})
 	}
 
 	wg := sync.WaitGroup{}
 
 	var err error
+	dl := dloader.NewDownloader(
+		c.User,
+		c.Password,
+	)
 
 	for _, download := range downloads {
 		wg.Add(1)
-		go func(info downloadConfig) {
+		go func(info dloader.GetConfig) {
 
-			dl := dloader.NewDownloader(dloader.OneConfig{
-				Login:    c.User,
-				Password: c.Password,
-				BasePath: c.BaseDir,
-				Project:  info.Project,
-				Version:  info.Version,
-				Filter:   info.Filter,
-			})
-
-			_, errGet := dl.Get()
+			_, errGet := dl.Get(info)
 			if errGet != nil {
 				err = multierr.Append(err, errGet)
 			}
 			wg.Done()
+
 		}(download)
 
 	}
@@ -196,10 +193,4 @@ func getMapFromStrings(arr []string, sep string, defValue string) map[string]str
 	}
 
 	return result
-}
-
-type downloadConfig struct {
-	Project string
-	Version string
-	Filter  string
 }

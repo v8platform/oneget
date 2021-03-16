@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/net/html"
+	"go.uber.org/multierr"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -17,71 +17,189 @@ import (
 	"sync"
 )
 
-type OneConfig struct {
-	Login    string
-	Password string
+type GetConfig struct {
 	BasePath string
 	Project  string
 	Version  string
 	Filter   string
 }
 
-type OneDownloader struct {
-	OneConfig
+type OnegetDownloader struct {
+	Login, Password string
+
 	httpClient *http.Client
 	urlCh      chan *FileToDownload
-	wg         sync.WaitGroup
+	wg         *sync.WaitGroup
+
+	parser *HtmlParser
 }
 
-func NewDownloader(config OneConfig) *OneDownloader {
+func NewDownloader(login, password string) *OnegetDownloader {
 
 	cj, _ := cookiejar.New(nil)
+	parser, _ := NewHtmlParser()
 
-	return &OneDownloader{
-		OneConfig: config,
+	return &OnegetDownloader{
 		httpClient: &http.Client{
 			Jar: cj,
 		},
-		wg: sync.WaitGroup{},
+		Login:    login,
+		Password: password,
+		wg:       &sync.WaitGroup{},
+		parser:   parser,
 	}
 
 }
 
-func (dr *OneDownloader) Get() ([]os.FileInfo, error) {
+func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 
 	files := make([]os.FileInfo, 0)
 
-	ticketUrl, err := dr.getURL()
-	if err != nil {
-		dr.handleError(err)
-		return files, err
-	}
+	downloadCh := make(chan *FileToDownload, 100)
 
-	dr.urlCh = make(chan *FileToDownload, 10000)
-	dr.wg.Add(1)
-	dr.findLinks(ticketUrl, dr.findProject)
-	go func() {
-		dr.wg.Wait()
-		close(dr.urlCh)
-	}()
-
-	for fileToDownload := range dr.urlCh {
-		fileInfo, err := dr.downloadFile(fileToDownload)
+	for _, getConfig := range config {
+		err := dr.getFiles(getConfig, downloadCh)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	go func() {
+		dr.wg.Wait()
+		close(downloadCh)
+	}()
+
+	for fileToDownload := range downloadCh {
+		fileInfo, err := dr.downloadFile(fileToDownload)
+		if err != nil {
+			dr.wg.Done()
+			log.Errorf(err.Error())
+			break
 		}
 		if fileInfo != nil {
 			files = append(files, fileInfo)
 		}
+		dr.wg.Done()
 	}
 
-	dr.urlCh = nil
+	downloadCh = nil
 
 	return files, nil
 
 }
 
-func (dr *OneDownloader) getURL() (string, error) {
+func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDownload) error {
+
+	releases, err := dr.getProjectReleases(config)
+	if err != nil {
+		return err
+	}
+
+	for _, release := range releases {
+		dr.wg.Add(1)
+		go func(info *ProjectVersionInfo) {
+			_ = dr.getReleaseFiles(info, config, downloadCh)
+			dr.wg.Done()
+		}(release)
+	}
+
+	return nil
+}
+
+func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config GetConfig, downloadCh chan *FileToDownload) error {
+
+	resp, err := dr.httpClient.Get(releasesURL + release.Url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	releaseFiles, err := dr.parser.ParseProjectRelease(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	files := filterReleaseFiles(releaseFiles, config.Filter)
+
+	var merr error
+
+	for _, file := range files {
+
+		err := dr.addFileToChannel(file.url, config, downloadCh)
+		if err != nil {
+			log.Errorf("Error get file from <%s>: %s", err.Error())
+			multierr.Append(merr, err)
+		}
+
+	}
+
+	return merr
+
+}
+
+func (dr *OnegetDownloader) getProjectReleases(config GetConfig) ([]*ProjectVersionInfo, error) {
+
+	ticketUrl, err := dr.getURL(releasesURL + projectHrefPrefix + config.Project)
+	if err != nil {
+		log.Errorf("Error get ticket: ", err.Error())
+		return nil, err
+	}
+
+	resp, err := dr.httpClient.Get(ticketUrl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	releases, err := dr.parser.ParseProjectReleases(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return filterProjectVersionInfo(releases, config.Version), nil
+
+}
+func filterReleaseFiles(list []ReleaseFileInfo, filter string) (filteredList []ReleaseFileInfo) {
+
+	if len(filter) == 0 || len(list) == 0 {
+		return list
+	}
+
+	re, _ := regexp.Compile(filter)
+
+	for _, info := range list {
+		if re.MatchString(info.url) {
+			filteredList = append(filteredList, info)
+		}
+	}
+
+	return
+
+}
+
+func filterProjectVersionInfo(list []*ProjectVersionInfo, filter string) (filteredList []*ProjectVersionInfo) {
+
+	if len(filter) == 0 || len(list) == 0 {
+		return list
+	}
+
+	if strings.EqualFold(strings.ToLower(filter), "latest") {
+		return append(filteredList, list[0])
+	}
+
+	re, _ := regexp.Compile(filter)
+
+	for _, info := range list {
+		if re.MatchString(info.Name) {
+			filteredList = append(filteredList, info)
+		}
+	}
+
+	return
+
+}
+
+func (dr *OnegetDownloader) getURL(url string) (string, error) {
 
 	type loginParams struct {
 		Login       string `json:"login"`
@@ -94,7 +212,7 @@ func (dr *OneDownloader) getURL() (string, error) {
 	}
 
 	postBody, err := json.Marshal(
-		loginParams{dr.Login, dr.Password, releasesURL})
+		loginParams{dr.Login, dr.Password, url})
 	if err != nil {
 		return "", err
 	}
@@ -128,134 +246,48 @@ func (dr *OneDownloader) getURL() (string, error) {
 
 }
 
-func (dr *OneDownloader) findLinks(rawUrl string, f func(string, string, *html.Node)) {
+func (dr *OnegetDownloader) addFileToChannel(href string, config GetConfig, downloadCh chan *FileToDownload) (err error) {
 
-	acquireSemaConnections()
-	resp, err := dr.httpClient.Get(rawUrl)
-	releaseSemaConnections()
+	downloadHref := []string{releasesURL + href}
 
-	if err != nil {
-		dr.handleError(err)
-		return
-	}
-	defer resp.Body.Close()
-
-	doc, err := html.Parse(resp.Body)
-	if err != nil {
-		dr.handleError(err)
-		return
-	}
-
-	dr.eachNode(doc, rawUrl, f)
-}
-
-func (dr *OneDownloader) eachNode(node *html.Node, u string, f func(string, string, *html.Node)) {
-
-	if node.Type == html.ElementNode && node.Data == "a" {
-		for _, attr := range node.Attr {
-			if attr.Key == "href" {
-				f(u, attr.Val, node)
-				break
-			}
-		}
-	}
-
-	for c := node.FirstChild; c != nil; c = c.NextSibling {
-		dr.eachNode(c, u, f)
-	}
-
-}
-
-func (dr *OneDownloader) findProject(_, href string, _ *html.Node) {
-	projectName := strings.ToLower(strings.TrimLeft(href, projectHrefPrefix))
-	log.Debugf("Finding project in href %s", projectName)
-	if strings.EqualFold(projectName, dr.Project) {
-		dr.findLinks(releasesURL+href, dr.findVersion)
-	}
-
-}
-
-func (dr *OneDownloader) findVersion(_, href string, node *html.Node) {
-
-	if !strings.HasPrefix(href, versionFilesHrefPrefix) {
-		return
-	}
-
-	log.Debugf("Filtering href %s by %s", href, dr.Version)
-	matched, err := regexp.MatchString(dr.Version, href)
-	if err != nil {
-		dr.handleError(err)
-		return
-	}
-	if !matched {
-		return
-	}
-
-	dr.findLinks(releasesURL+href, dr.findToDownloadLink)
-
-}
-
-func (dr *OneDownloader) findToDownloadLink(_, href string, _ *html.Node) {
-
-	lowerHref := strings.ToLower(href)
-	isRO := strings.Contains(lowerHref, "path=ro\\")
-
-	if dr.Filter == "" {
-		if strings.HasSuffix(lowerHref, "rar") ||
-			(strings.HasSuffix(lowerHref, "zip") && !isRO) ||
-			strings.HasSuffix(lowerHref, "gz") ||
-			strings.HasSuffix(lowerHref, "exe") ||
-			strings.HasSuffix(lowerHref, "msi") ||
-			strings.HasSuffix(lowerHref, "deb") ||
-			strings.HasSuffix(lowerHref, "rpm") ||
-			strings.HasSuffix(lowerHref, "epf") ||
-			strings.HasSuffix(lowerHref, "erf") {
-
-			dr.findLinks(releasesURL+href, dr.findFileServerLink)
-
-		} else if strings.HasSuffix(lowerHref, "txt") ||
-			strings.HasSuffix(lowerHref, "pdf") ||
-			strings.HasSuffix(lowerHref, "html") ||
-			strings.HasSuffix(lowerHref, "htm") ||
-			(strings.HasSuffix(lowerHref, "zip") && isRO) {
-			dr.addFileToChannel(href, releasesURL+href)
-		}
-	} else {
-		matched, err := regexp.MatchString(dr.Filter, href)
+	if !directLink(href) {
+		downloadHref, err = dr.getDownloadFileLinks(href, config)
 		if err != nil {
-			dr.handleError(err)
-			return
-		}
-		if matched {
-			dr.findLinks(releasesURL+href, dr.findFileServerLink)
+			return err
 		}
 	}
 
-}
-
-func (dr *OneDownloader) findFileServerLink(u, href string, _ *html.Node) {
-
-	if strings.Contains(href, fileServerHrefPrefix) {
-		dr.addFileToChannel(u, href)
+	fileName, filePath, err := dr.fileNameFromUrl(href)
+	if err != nil {
+		return err
 	}
 
-}
-
-func (dr *OneDownloader) addFileToChannel(u, href string) {
-	fileName, filePath, err := dr.fileNameFromUrl(u)
-	if err == nil {
-		fileToDownload := FileToDownload{
-			url:  href,
-			path: filePath,
-			name: fileName,
-		}
-		dr.urlCh <- &fileToDownload
-	} else {
-		dr.handleError(err)
+	if len(downloadHref) == 0 {
+		return nil
 	}
+
+	dr.wg.Add(1)
+
+	log.Debugf("Add to download: %s", href)
+	downloadCh <- &FileToDownload{
+		url:  downloadHref,
+		path: filePath,
+		name: fileName,
+	}
+
+	return nil
 }
 
-func (dr *OneDownloader) fileNameFromUrl(rawUrl string) (string, string, error) {
+func directLink(href string) bool {
+	return strings.HasSuffix(href, "txt") ||
+		strings.HasSuffix(href, "pdf") ||
+		strings.HasSuffix(href, "html") ||
+		strings.HasSuffix(href, "htm") ||
+		(strings.HasSuffix(href, "zip") &&
+			strings.Contains(href, "path=ro\\"))
+}
+
+func (dr *OnegetDownloader) fileNameFromUrl(rawUrl string) (string, string, error) {
 
 	fileName := strings.Builder{}
 	filePath := strings.Builder{}
@@ -284,9 +316,9 @@ func (dr *OneDownloader) fileNameFromUrl(rawUrl string) (string, string, error) 
 	return fileName.String(), filePath.String(), nil
 }
 
-func (dr *OneDownloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, error) {
+func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, error) {
 
-	workDir := filepath.Join(dr.BasePath, strings.ToLower(fileToDownload.path))
+	workDir := filepath.Join(fileToDownload.basePath, strings.ToLower(fileToDownload.path))
 	fileName := filepath.Join(workDir, fileToDownload.name)
 	fileInfo, err := os.Stat(fileName)
 	if os.IsExist(err) {
@@ -303,11 +335,15 @@ func (dr *OneDownloader) downloadFile(fileToDownload *FileToDownload) (os.FileIn
 			// https://wenzr.wordpress.com/2018/03/27/go-file-permissions-on-unix/
 			os.Chmod(workDir, 0777)
 		}
-		log.Debugf("Workspace directory: %s", workDir)
-		log.Debugf("Getting a file from url: %s", fileToDownload.url)
 
-		acquireSemaConnections()
-		resp, err := dr.httpClient.Get(fileToDownload.url)
+		downloadUrl := fileToDownload.url[0]
+
+		log.Debugf("Workspace directory: %s", workDir)
+		log.Debugf("Getting a file from url: %s", downloadUrl)
+
+		//acquireSemaConnections()
+		//defer releaseSemaConnections()
+		resp, err := dr.httpClient.Get(downloadUrl)
 		if err != nil {
 			return nil, err
 		}
@@ -320,13 +356,13 @@ func (dr *OneDownloader) downloadFile(fileToDownload *FileToDownload) (os.FileIn
 		defer resp.Body.Close()
 
 		_, err = io.Copy(f, resp.Body)
-		releaseSemaConnections()
+
 		if err != nil {
 			return nil, err
 		}
 		f.Close()
 
-		log.Debugf("End of receiving file by url: %s", fileToDownload.url)
+		log.Debugf("End of receiving file by url: %s", downloadUrl)
 		log.Debugf("File saved to: %s", fileName)
 
 		err = os.Rename(fileName+tempFileSuffix, fileName)
@@ -349,9 +385,26 @@ func (dr *OneDownloader) downloadFile(fileToDownload *FileToDownload) (os.FileIn
 
 }
 
-func (dr *OneDownloader) handleError(err error) {
+func (dr *OnegetDownloader) handleError(err error) {
 	if err == nil {
 		return
 	}
 	log.Error(err.Error())
+}
+
+func (dr *OnegetDownloader) getDownloadFileLinks(href string, config GetConfig) ([]string, error) {
+
+	resp, err := dr.httpClient.Get(releasesURL + href)
+	if err != nil {
+		return []string{}, err
+	}
+	defer resp.Body.Close()
+
+	fileLinks, err := dr.parser.ParseReleaseFiles(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return fileLinks, nil
+
 }

@@ -33,9 +33,10 @@ var semaMaxConnections = make(chan struct{}, 10)
 var log = logos.New("github.com/v8platform/oneget/downloader").Sugar()
 
 type FileToDownload struct {
-	url  string
-	path string
-	name string
+	url      []string
+	basePath string
+	path     string
+	name     string
 }
 
 type Config struct {
@@ -286,7 +287,7 @@ func (dr *Downloader) addFileToChannel(u, href string) {
 	fileName, filePath, err := dr.fileNameFromUrl(u)
 	if err == nil {
 		fileToDownload := FileToDownload{
-			url:  href,
+			url:  []string{href},
 			path: filePath,
 			name: fileName,
 		}
@@ -348,7 +349,7 @@ func (dr *Downloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo,
 		log.Debugf("Getting a file from url: %s", fileToDownload.url)
 
 		acquireSemaConnections()
-		resp, err := dr.httpClient.Get(fileToDownload.url)
+		resp, err := dr.httpClient.Get(fileToDownload.url[0])
 		if err != nil {
 			return nil, err
 		}
