@@ -78,7 +78,7 @@ func (p *HtmlParser) ParseProjectReleases(body io.Reader) (rows []*ProjectVersio
 	})
 
 	if tableHtml == nil {
-		return
+		return nil, fmt.Errorf("not found html tag by selector: <%s>", p.ProjectTableSelector)
 	}
 
 	return parseProjectTable(tableHtml), nil

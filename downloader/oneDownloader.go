@@ -17,19 +17,24 @@ import (
 	"sync"
 )
 
+type Filter interface {
+	MatchString(source string) bool
+}
+
 type GetConfig struct {
 	BasePath string
 	Project  string
 	Version  string
-	Filter   string
+	Filters  []Filter
 }
 
 type OnegetDownloader struct {
 	Login, Password string
 
-	httpClient *http.Client
-	urlCh      chan *FileToDownload
-	wg         *sync.WaitGroup
+	cookie *cookiejar.Jar
+
+	urlCh chan *FileToDownload
+	wg    *sync.WaitGroup
 
 	parser *HtmlParser
 }
@@ -40,9 +45,7 @@ func NewDownloader(login, password string) *OnegetDownloader {
 	parser, _ := NewHtmlParser()
 
 	return &OnegetDownloader{
-		httpClient: &http.Client{
-			Jar: cj,
-		},
+		cookie:   cj,
 		Login:    login,
 		Password: password,
 		wg:       &sync.WaitGroup{},
@@ -52,6 +55,10 @@ func NewDownloader(login, password string) *OnegetDownloader {
 }
 
 func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
+
+	if err := dr.authRequest(); err != nil {
+		return nil, err
+	}
 
 	files := make([]os.FileInfo, 0)
 
@@ -69,23 +76,53 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 		close(downloadCh)
 	}()
 
+	limit := make(chan struct{}, 10)
+	mu := &sync.Mutex{}
 	for fileToDownload := range downloadCh {
-		fileInfo, err := dr.downloadFile(fileToDownload)
-		if err != nil {
+		go func(file *FileToDownload) {
+
+			limit <- struct{}{}
+
+			fileInfo, err := dr.downloadFile(fileToDownload)
+			if err != nil {
+				dr.wg.Done()
+				log.Errorf(err.Error())
+			}
+			if fileInfo != nil {
+				mu.Lock()
+				files = append(files, fileInfo)
+				mu.Unlock()
+			}
 			dr.wg.Done()
-			log.Errorf(err.Error())
-			break
-		}
-		if fileInfo != nil {
-			files = append(files, fileInfo)
-		}
-		dr.wg.Done()
+
+			<-limit
+
+		}(fileToDownload)
+
 	}
 
 	downloadCh = nil
 
 	return files, nil
 
+}
+
+func (dr *OnegetDownloader) authRequest() error {
+
+	ticketUrl, err := dr.getURL(releasesURL)
+	if err != nil {
+		log.Errorf("Error get ticket: ", err.Error())
+		return err
+	}
+
+	client := dr.getClient()
+	_, err = client.Get(ticketUrl)
+	if err != nil {
+		log.Errorf("Error auth request: ", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDownload) error {
@@ -97,10 +134,10 @@ func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDo
 
 	for _, release := range releases {
 		dr.wg.Add(1)
-		go func(info *ProjectVersionInfo) {
+		go func(info *ProjectVersionInfo, cfg GetConfig) {
 			_ = dr.getReleaseFiles(info, config, downloadCh)
 			dr.wg.Done()
-		}(release)
+		}(release, config)
 	}
 
 	return nil
@@ -108,18 +145,19 @@ func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDo
 
 func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config GetConfig, downloadCh chan *FileToDownload) error {
 
-	resp, err := dr.httpClient.Get(releasesURL + release.Url)
+	client := dr.getClient()
+	resp, err := client.Get(releasesURL + release.Url)
+	defer resp.Body.Close()
+
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	releaseFiles, err := dr.parser.ParseProjectRelease(resp.Body)
 	if err != nil {
 		return err
 	}
-
-	files := filterReleaseFiles(releaseFiles, config.Filter)
+	files := filterReleaseFiles(releaseFiles, config.Filters)
 
 	var merr error
 
@@ -139,38 +177,53 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 
 func (dr *OnegetDownloader) getProjectReleases(config GetConfig) ([]*ProjectVersionInfo, error) {
 
-	ticketUrl, err := dr.getURL(releasesURL + projectHrefPrefix + config.Project)
-	if err != nil {
-		log.Errorf("Error get ticket: ", err.Error())
-		return nil, err
-	}
+	client := dr.getClient()
 
-	resp, err := dr.httpClient.Get(ticketUrl)
-	if err != nil {
-		return nil, err
-	}
+	url := releasesURL + projectHrefPrefix + config.Project
+	resp, err := client.Get(url)
 	defer resp.Body.Close()
 
-	releases, err := dr.parser.ParseProjectReleases(resp.Body)
 	if err != nil {
 		return nil, err
+	}
+	responseBodyData, _ := ioutil.ReadAll(resp.Body)
+
+	releases, err := dr.parser.ParseProjectReleases(bytes.NewBuffer(responseBodyData))
+	if err != nil {
+		return nil, fmt.Errorf("error parse project <%s> releases: %s, html: <%s>", config.Project, err.Error(), string(responseBodyData))
 	}
 
 	return filterProjectVersionInfo(releases, config.Version), nil
 
 }
-func filterReleaseFiles(list []ReleaseFileInfo, filter string) (filteredList []ReleaseFileInfo) {
+func filterReleaseFiles(list []ReleaseFileInfo, filters []Filter) (filteredList []ReleaseFileInfo) {
 
-	if len(filter) == 0 || len(list) == 0 {
+	if len(filters) == 0 || len(list) == 0 {
 		return list
 	}
 
-	re, _ := regexp.Compile(filter)
+	matchInfo := func(i ReleaseFileInfo) bool {
+
+		for _, filter := range filters {
+
+			matchName := filter.MatchString(i.name)
+			matchUrl := filter.MatchString(i.url)
+
+			if matchName || matchUrl {
+				return true
+			}
+
+		}
+
+		return false
+	}
 
 	for _, info := range list {
-		if re.MatchString(info.url) {
+
+		if matchInfo(info) {
 			filteredList = append(filteredList, info)
 		}
+
 	}
 
 	return
@@ -199,6 +252,13 @@ func filterProjectVersionInfo(list []*ProjectVersionInfo, filter string) (filter
 
 }
 
+func (dr *OnegetDownloader) getClient() *http.Client {
+	return &http.Client{
+		Jar:       dr.cookie,
+		Transport: nil,
+	}
+}
+
 func (dr *OnegetDownloader) getURL(url string) (string, error) {
 
 	type loginParams struct {
@@ -217,12 +277,12 @@ func (dr *OnegetDownloader) getURL(url string) (string, error) {
 		return "", err
 	}
 
-	acquireSemaConnections()
-	resp, err := dr.httpClient.Post(
+	client := dr.getClient()
+
+	resp, err := client.Post(
 		loginURL+"/rest/public/ticket/get",
 		"application/json",
 		bytes.NewReader(postBody))
-	releaseSemaConnections()
 	if err != nil {
 		return "", err
 	}
@@ -270,9 +330,10 @@ func (dr *OnegetDownloader) addFileToChannel(href string, config GetConfig, down
 
 	log.Debugf("Add to download: %s", href)
 	downloadCh <- &FileToDownload{
-		url:  downloadHref,
-		path: filePath,
-		name: fileName,
+		url:      downloadHref,
+		path:     filePath,
+		name:     fileName,
+		basePath: config.BasePath,
 	}
 
 	return nil
@@ -340,10 +401,10 @@ func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.Fil
 
 		log.Debugf("Workspace directory: %s", workDir)
 		log.Debugf("Getting a file from url: %s", downloadUrl)
+		client := dr.getClient()
+		resp, err := client.Get(downloadUrl)
+		defer resp.Body.Close()
 
-		//acquireSemaConnections()
-		//defer releaseSemaConnections()
-		resp, err := dr.httpClient.Get(downloadUrl)
 		if err != nil {
 			return nil, err
 		}
@@ -353,10 +414,7 @@ func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.Fil
 			return nil, err
 		}
 
-		defer resp.Body.Close()
-
 		_, err = io.Copy(f, resp.Body)
-
 		if err != nil {
 			return nil, err
 		}
@@ -394,7 +452,8 @@ func (dr *OnegetDownloader) handleError(err error) {
 
 func (dr *OnegetDownloader) getDownloadFileLinks(href string, config GetConfig) ([]string, error) {
 
-	resp, err := dr.httpClient.Get(releasesURL + href)
+	client := dr.getClient()
+	resp, err := client.Get(releasesURL + href)
 	if err != nil {
 		return []string{}, err
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/khorevaa/logos"
 	"go.uber.org/multierr"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -43,15 +44,31 @@ func (c *getCmd) run(ctx *cli.Context) error {
 	}
 
 	releases := getMapFromStrings(c.releases, "@", "latest")
-	filters := getMapFromStrings(c.Filter.Value(), "=", "")
+	filtersStr := getFilters(c.Filter.Value(), "=", "")
 
 	var downloads []dloader.GetConfig
+
 	for project, version := range releases {
+
+		projectIdAliase := getProjectId(project)
+
+		projectId := dloader.GetProjectIDByAlias(projectIdAliase)
+		projectFilters := compileFilters(filtersStr[projectId]...)
+
+		if filters, err := getProjectFilter(project); filters != nil {
+			projectFilters = append(projectFilters, filters)
+		} else {
+			if err != nil {
+				log.Errorf("error get project <%s> filters: %s", projectIdAliase, err.Error())
+				continue
+			}
+		}
+
 		downloads = append(downloads, dloader.GetConfig{
 			BasePath: c.BaseDir,
-			Project:  project,
+			Project:  projectId,
 			Version:  version,
-			Filter:   filters[project],
+			Filters:  projectFilters,
 		})
 	}
 
@@ -193,4 +210,64 @@ func getMapFromStrings(arr []string, sep string, defValue string) map[string]str
 	}
 
 	return result
+}
+
+func getFilters(arr []string, sep string, defValue string) map[string][]string {
+
+	result := make(map[string][]string)
+
+	for _, str := range arr {
+
+		values := strings.SplitN(str, sep, 2)
+
+		key := values[0]
+		value := defValue
+
+		if len(values) == 2 {
+			value = values[1]
+		}
+
+		if result[key] == nil {
+			result[key] = []string{}
+		}
+
+		result[key] = append(result[key], value)
+
+	}
+
+	return result
+}
+
+func getProjectId(project string) string {
+
+	values := strings.SplitN(project, ":", 2)
+
+	key := values[0]
+
+	return key
+
+}
+
+func compileFilters(filters ...string) []dloader.Filter {
+	var result []dloader.Filter
+	for _, filter := range filters {
+
+		compile := regexp.MustCompile(filter)
+
+		result = append(result, compile)
+	}
+
+	return result
+}
+
+func getProjectFilter(project string) (dloader.Filter, error) {
+
+	values := strings.SplitN(project, ":", 2)
+
+	key := values[0]
+
+	if len(values) == 2 {
+		return dloader.NewFilter(dloader.GetProjectIDByAlias(key), values[1])
+	}
+	return nil, nil
 }
