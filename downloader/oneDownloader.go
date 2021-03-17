@@ -1,12 +1,9 @@
 package downloader
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"go.uber.org/multierr"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -33,6 +30,8 @@ type OnegetDownloader struct {
 
 	cookie *cookiejar.Jar
 
+	client *Client
+
 	urlCh chan *FileToDownload
 	wg    *sync.WaitGroup
 
@@ -56,9 +55,12 @@ func NewDownloader(login, password string) *OnegetDownloader {
 
 func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 
-	if err := dr.authRequest(); err != nil {
+	client, err := NewClient(loginURL, releasesURL, dr.Login, dr.Password)
+	if err != nil {
 		return nil, err
 	}
+
+	dr.client = client
 
 	files := make([]os.FileInfo, 0)
 
@@ -83,7 +85,7 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 
 			limit <- struct{}{}
 
-			fileInfo, err := dr.downloadFile(fileToDownload)
+			fileInfo, err := dr.downloadFile(file)
 			if err != nil {
 				dr.wg.Done()
 				log.Errorf(err.Error())
@@ -107,24 +109,6 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 
 }
 
-func (dr *OnegetDownloader) authRequest() error {
-
-	ticketUrl, err := dr.getURL(releasesURL)
-	if err != nil {
-		log.Errorf("Error get ticket: ", err.Error())
-		return err
-	}
-
-	client := dr.getClient()
-	_, err = client.Get(ticketUrl)
-	if err != nil {
-		log.Errorf("Error auth request: ", err.Error())
-		return err
-	}
-
-	return nil
-}
-
 func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDownload) error {
 
 	releases, err := dr.getProjectReleases(config)
@@ -145,13 +129,14 @@ func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDo
 
 func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config GetConfig, downloadCh chan *FileToDownload) error {
 
-	client := dr.getClient()
+	client := dr.client
 	resp, err := client.Get(releasesURL + release.Url)
-	defer resp.Body.Close()
 
 	if err != nil {
 		return err
 	}
+
+	defer resp.Body.Close()
 
 	releaseFiles, err := dr.parser.ParseProjectRelease(resp.Body)
 	if err != nil {
@@ -177,20 +162,16 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 
 func (dr *OnegetDownloader) getProjectReleases(config GetConfig) ([]*ProjectVersionInfo, error) {
 
-	client := dr.getClient()
-
-	url := releasesURL + projectHrefPrefix + config.Project
-	resp, err := client.Get(url)
-	defer resp.Body.Close()
-
+	resp, err := dr.client.Get(projectHrefPrefix + config.Project)
 	if err != nil {
 		return nil, err
 	}
-	responseBodyData, _ := ioutil.ReadAll(resp.Body)
+	defer resp.Body.Close()
 
-	releases, err := dr.parser.ParseProjectReleases(bytes.NewBuffer(responseBodyData))
+	releases, err := dr.parser.ParseProjectReleases(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error parse project <%s> releases: %s, html: <%s>", config.Project, err.Error(), string(responseBodyData))
+		return nil, fmt.Errorf("error parse project <%s> releases: %s, html: <%s>",
+			config.Project, err.Error(), readBodyMustString(resp.Body))
 	}
 
 	return filterProjectVersionInfo(releases, config.Version), nil
@@ -257,53 +238,6 @@ func (dr *OnegetDownloader) getClient() *http.Client {
 		Jar:       dr.cookie,
 		Transport: nil,
 	}
-}
-
-func (dr *OnegetDownloader) getURL(url string) (string, error) {
-
-	type loginParams struct {
-		Login       string `json:"login"`
-		Password    string `json:"password"`
-		ServiceNick string `json:"serviceNick"`
-	}
-
-	type ticket struct {
-		Ticket string `json:"ticket"`
-	}
-
-	postBody, err := json.Marshal(
-		loginParams{dr.Login, dr.Password, url})
-	if err != nil {
-		return "", err
-	}
-
-	client := dr.getClient()
-
-	resp, err := client.Post(
-		loginURL+"/rest/public/ticket/get",
-		"application/json",
-		bytes.NewReader(postBody))
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	responseBodyData, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s", string(responseBodyData))
-	}
-
-	var tick ticket
-	err = json.Unmarshal(responseBodyData, &tick)
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf(loginURL+"/ticket/auth?token=%s", tick.Ticket), nil
-
 }
 
 func (dr *OnegetDownloader) addFileToChannel(href string, config GetConfig, downloadCh chan *FileToDownload) (err error) {
@@ -397,30 +331,23 @@ func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.Fil
 			os.Chmod(workDir, 0777)
 		}
 
+		log.Infof("Getting a file: %s", fileToDownload.name)
+
 		downloadUrl := fileToDownload.url[0]
 
-		log.Debugf("Workspace directory: %s", workDir)
 		log.Debugf("Getting a file from url: %s", downloadUrl)
-		client := dr.getClient()
+		client := dr.client
 		resp, err := client.Get(downloadUrl)
+		if err != nil {
+			return nil, err
+		}
 		defer resp.Body.Close()
 
-		if err != nil {
+		if err := SaveToFile(resp.Body, fileName+tempFileSuffix); err != nil {
+			log.Debugf("File <%s> saved err: %s", fileName, err.Error())
 			return nil, err
 		}
 
-		f, err := os.Create(fileName + tempFileSuffix)
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = io.Copy(f, resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		f.Close()
-
-		log.Debugf("End of receiving file by url: %s", downloadUrl)
 		log.Debugf("File saved to: %s", fileName)
 
 		err = os.Rename(fileName+tempFileSuffix, fileName)
@@ -443,6 +370,22 @@ func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.Fil
 
 }
 
+func SaveToFile(reader io.ReadCloser, fileName string) error {
+	fd, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+
+	defer reader.Close()
+	defer fd.Close()
+
+	if _, err = io.Copy(fd, reader); err != nil && err != io.EOF {
+		return err
+	}
+
+	return nil
+}
+
 func (dr *OnegetDownloader) handleError(err error) {
 	if err == nil {
 		return
@@ -452,8 +395,8 @@ func (dr *OnegetDownloader) handleError(err error) {
 
 func (dr *OnegetDownloader) getDownloadFileLinks(href string, config GetConfig) ([]string, error) {
 
-	client := dr.getClient()
-	resp, err := client.Get(releasesURL + href)
+	client := dr.client
+	resp, err := client.Get(href)
 	if err != nil {
 		return []string{}, err
 	}

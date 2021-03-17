@@ -6,7 +6,6 @@ import (
 	"go.uber.org/multierr"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -72,34 +71,22 @@ func (c *getCmd) run(ctx *cli.Context) error {
 		})
 	}
 
-	wg := sync.WaitGroup{}
-
 	var err error
 	dl := dloader.NewDownloader(
 		c.User,
 		c.Password,
 	)
 
-	for _, download := range downloads {
-		wg.Add(1)
-		go func(info dloader.GetConfig) {
-
-			_, errGet := dl.Get(info)
-			if errGet != nil {
-				err = multierr.Append(err, errGet)
-			}
-			wg.Done()
-
-		}(download)
-
+	files, errGet := dl.Get(downloads...)
+	if errGet != nil {
+		err = multierr.Append(err, errGet)
 	}
-	wg.Wait()
 
 	if err != nil {
 		return err
 	}
 
-	log.Infof("Downloaded <%d> releases", len(downloads))
+	log.Infof("Downloaded <%d> releases, files <%d>", len(downloads), len(files))
 
 	return nil
 }

@@ -21,4 +21,4 @@ loggers:
       appender_refs:
         - CONSOLE
         - FILE
-      level: debug
+      level: info
