@@ -54,14 +54,14 @@ func (c *getCmd) run(ctx *cli.Context) error {
 
 	for project, version := range releases {
 
-		projectIdAliase := getProjectId(project)
+		projectIdAlias := getProjectId(project)
 
-		projectId := dloader.GetProjectIDByAlias(projectIdAliase)
+		projectId := dloader.GetProjectIDByAlias(projectIdAlias)
 		projectFilters := compileFilters(filtersStr[projectId]...)
 
 		if fileFilter, err := getProjectFilter(project); err != nil {
-			log.Errorf("error get project <%s> file filter: %s", projectIdAliase, err.Error())
-			return fmt.Errorf("project <%s> %s", projectIdAliase, err.Error())
+			log.Errorf("error get project <%s> file filter: %s", projectIdAlias, err.Error())
+			return fmt.Errorf("project <%s> %s", projectIdAlias, err.Error())
 		} else if fileFilter != nil {
 			projectFilters = append(projectFilters, fileFilter)
 		}
@@ -275,33 +275,40 @@ func (c *getCmd) extractFiles(files []string) error {
 		}
 
 		if c.Rename {
-			files, err := ioutil.ReadDir(extractDir)
+			err := renameFiles(extractDir)
 			if err != nil {
-				log.Errorf("Error find files in dir <%s> to rename: %s", extractDir, err.Error())
 				multierr.Append(mErr, err)
 				continue
-			}
-			for _, file := range files {
-				if file.IsDir() {
-					continue
-				}
-				oldName := file.Name()
-				newName := unpacker.GetAliasesDistrib(oldName)
-				err := os.Rename(
-					filepath.Join(extractDir, oldName),
-					filepath.Join(extractDir, newName))
-				if err != nil {
-					log.Errorf("Error rename file <%s> to <%s>: %s", oldName, newName, err.Error())
-					multierr.Append(mErr, err)
-					continue
-				}
-
 			}
 
 		}
 	}
 
 	return mErr
+}
+
+func renameFiles(dir string) error {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		log.Errorf("Error find files in dir <%s> to rename: %s", dir, err.Error())
+		return err
+	}
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		oldName := file.Name()
+		newName := unpacker.GetAliasesDistrib(oldName)
+		err := os.Rename(
+			filepath.Join(dir, oldName),
+			filepath.Join(dir, newName))
+		if err != nil {
+			log.Errorf("Error rename file <%s> to <%s>: %s", oldName, newName, err.Error())
+			continue
+		}
+
+	}
+	return nil
 }
 
 func getMapFromStrings(arr []string, sep string, defValue string) map[string]string {

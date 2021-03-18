@@ -63,11 +63,6 @@ var (
 		"full":        fullwindowsre,
 	}
 
-	macSkipFilters = []string{
-		"x64",
-		"server",
-	}
-
 	x64Regexp = regexp.MustCompile(x64re)
 )
 
@@ -300,7 +295,7 @@ func (m *EdtMatchFilter) MatchString(source string) bool {
 	return true
 }
 
-func NewVersionFilter(project string, filter string) (VersionFilter, error) {
+func NewVersionFilter(_ string, filter string) (VersionFilter, error) {
 
 	switch {
 	case strings.HasPrefix(filter, "from:"):

@@ -80,16 +80,14 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]string, error) {
 
 			limit <- struct{}{}
 
-			fileInfo, err := dr.downloadFile(file)
+			filename, err := dr.downloadFile(file)
 			if err != nil {
 				dr.wg.Done()
 				log.Errorf(err.Error())
 			}
-			if fileInfo != nil {
+			if len(filename) > 0 {
 				mu.Lock()
-				workDir := filepath.Join(file.basePath, strings.ToLower(file.path))
-				fileName := filepath.Join(workDir, fileInfo.Name())
-				files = append(files, fileName)
+				files = append(files, filename)
 				mu.Unlock()
 			}
 			dr.wg.Done()
@@ -296,24 +294,23 @@ func (dr *OnegetDownloader) fileNameFromUrl(rawUrl string) (string, string, erro
 	return fileName.String(), filePath.String(), nil
 }
 
-func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.FileInfo, error) {
+func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (string, error) {
 
 	workDir := filepath.Join(fileToDownload.basePath, strings.ToLower(fileToDownload.path))
 	fileName := filepath.Join(workDir, fileToDownload.name)
-	fileInfo, err := os.Stat(fileName)
+	_, err := os.Stat(fileName)
 	if os.IsExist(err) {
-
-		return fileInfo, nil
-
-	} else if os.IsNotExist(err) {
+		return fileName, nil
+	}
+	if os.IsNotExist(err) {
 
 		if _, err := os.Stat(workDir); os.IsNotExist(err) {
 			err = os.MkdirAll(filepath.Join(workDir), 0777)
 			if err != nil {
-				return nil, err
+				return "", err
 			}
 			// https://wenzr.wordpress.com/2018/03/27/go-file-permissions-on-unix/
-			os.Chmod(workDir, 0777)
+			_ = os.Chmod(workDir, 0777)
 		}
 
 		log.Infof("Getting a file: %s", fileToDownload.name)
@@ -324,34 +321,27 @@ func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (os.Fil
 		client := dr.client
 		resp, err := client.Get(downloadUrl)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		defer resp.Body.Close()
 
 		if err := SaveToFile(resp.Body, fileName+tempFileSuffix); err != nil {
 			log.Debugf("File <%s> saved err: %s", fileName, err.Error())
-			return nil, err
+			return "", err
 		}
 
 		log.Debugf("File saved to: %s", fileName)
 
 		err = os.Rename(fileName+tempFileSuffix, fileName)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
-		fileInfo, err := os.Stat(fileName)
-		if err != nil {
-			return nil, err
-		}
-
-		return fileInfo, nil
-
-	} else if err != nil {
+		return fileName, nil
 
 	}
 
-	return nil, nil
+	return "", nil
 
 }
 
@@ -378,7 +368,7 @@ func (dr *OnegetDownloader) handleError(err error) {
 	log.Error(err.Error())
 }
 
-func (dr *OnegetDownloader) getDownloadFileLinks(href string, config GetConfig) ([]string, error) {
+func (dr *OnegetDownloader) getDownloadFileLinks(href string, _ GetConfig) ([]string, error) {
 
 	client := dr.client
 	resp, err := client.Get(href)

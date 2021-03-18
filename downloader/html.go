@@ -182,11 +182,11 @@ func parseReleasesTable(s *goquery.Selection) (rows []ProjectInfo) {
 					rowHtml.Find("span").Each(func(i int, releaseHtml *goquery.Selection) {
 						if len(info.VersionsInfo) > i {
 							textDate := strings.TrimSpace(releaseHtml.Text())
-							pusblishDate, err := parseReleaseDate(textDate)
+							publishDate, err := parseReleaseDate(textDate)
 							if err != nil {
 								log.Errorf("Error parse <%s> for %s", textDate, info.VersionsInfo[i].Name)
 							}
-							info.VersionsInfo[i].PublishDate = pusblishDate
+							info.VersionsInfo[i].PublishDate = publishDate
 						}
 					})
 				case 6: // .versionColumn
@@ -201,11 +201,11 @@ func parseReleasesTable(s *goquery.Selection) (rows []ProjectInfo) {
 					rowHtml.Find("span").Each(func(i int, releaseHtml *goquery.Selection) {
 						if len(info.TestVersionsInfo) > i {
 							textDate := strings.TrimSpace(releaseHtml.Text())
-							pusblishDate, err := parseReleaseDate(textDate)
+							publishDate, err := parseReleaseDate(textDate)
 							if err != nil {
 								log.Errorf("Error parse <%s> for %s", textDate, info.TestVersionsInfo[i].Name)
 							}
-							info.TestVersionsInfo[i].PublishDate = pusblishDate
+							info.TestVersionsInfo[i].PublishDate = publishDate
 						}
 					})
 				}
