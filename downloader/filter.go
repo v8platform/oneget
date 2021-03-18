@@ -41,7 +41,7 @@ const (
 var (
 	ProjectAliases = map[string]string{
 		"platform": Platform83Project,
-		"edt":      "DevelopmentTools10",
+		"edt":      EDTProject,
 		"ring":     "EnterpriseLicenseTools",
 		"executor": "Executor",
 		"pg":       "AddCompPostgre",
@@ -58,7 +58,8 @@ var (
 		"server":      serverre,
 		"thin-client": thinre,
 		"thin":        thinre,
-		"online":      "edt",
+		"online":      "edt.online",
+		"jdk":         "edt.jdk",
 		"full":        fullwindowsre,
 	}
 

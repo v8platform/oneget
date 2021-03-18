@@ -67,20 +67,20 @@ func setFlags() []cli.Flag {
 			Usage:       "Файл лога загрузки",
 		},
 		&cli.BoolFlag{
-			Name: "extract",
+			Name:  "extract",
 			Value: false,
 			Usage: "Распаковывать дистрибутив",
 		},
 		&cli.StringFlag{
-			Name:       	"extractPath",
-			DefaultText:	"pack",
-			Value: 			"pack",
-			Usage: 			"Каталог распаковки дистрибутива",
+			Name:        "extractPath",
+			DefaultText: "pack",
+			Value:       "pack",
+			Usage:       "Каталог распаковки дистрибутива",
 		},
 		&cli.BoolFlag{
-			Name: "rename",
+			Name:    "rename",
 			Aliases: []string{"sl"},
-			Value: false,
+			Value:   false,
 			Usage: `Переименовывать дистрибутивы при распаковке. 
 				Примеры: 
 					1c-enterprise-8.3.18.1334-client_8.3.18-1334_amd64.deb -> client-8.3.18.1334.deb
@@ -104,9 +104,9 @@ func main() {
 				Nicks:         Nicks(strings.ToLower(c.String("nicks"))),
 				VersionFilter: c.String("version-filter"),
 				DistribFilter: c.String("distrib-filter"),
-				Extract:  	   c.Bool("extract"),
-				ExtractPath:    c.String("extractPath"),
-				Rename: c.Bool("rename"),
+				Extract:       c.Bool("extract"),
+				ExtractPath:   c.String("extractPath"),
+				Rename:        c.Bool("rename"),
 			}
 
 			debug := c.Bool("debug")
@@ -124,11 +124,6 @@ func main() {
 			}
 
 			return err
-		},
-		Metadata: map[string]interface{}{
-			"GET_ARGS": map[string]string{
-				"RELEASE": "Описание релиза в формате platform83@8.3.18.1334",
-			},
 		},
 	}
 

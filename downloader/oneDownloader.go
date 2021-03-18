@@ -48,7 +48,7 @@ func NewDownloader(login, password string) *OnegetDownloader {
 
 }
 
-func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
+func (dr *OnegetDownloader) Get(config ...GetConfig) ([]string, error) {
 
 	client, err := NewClient(loginURL, releasesURL, dr.Login, dr.Password)
 	if err != nil {
@@ -57,7 +57,7 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 
 	dr.client = client
 
-	files := make([]os.FileInfo, 0)
+	files := make([]string, 0)
 
 	downloadCh := make(chan *FileToDownload, 100)
 
@@ -87,7 +87,9 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]os.FileInfo, error) {
 			}
 			if fileInfo != nil {
 				mu.Lock()
-				files = append(files, fileInfo)
+				workDir := filepath.Join(file.basePath, strings.ToLower(file.path))
+				fileName := filepath.Join(workDir, fileInfo.Name())
+				files = append(files, fileName)
 				mu.Unlock()
 			}
 			dr.wg.Done()

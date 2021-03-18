@@ -3,7 +3,11 @@ package cmd
 import (
 	"fmt"
 	"github.com/khorevaa/logos"
+	"github.com/v8platform/oneget/unpacker"
 	"go.uber.org/multierr"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -15,13 +19,14 @@ import (
 var log = logos.New("github.com/v8platform/oneget").Sugar()
 
 type getCmd struct {
-	User      string
-	Password  string
-	BaseDir   string
-	StartDate time.Time
-	Type      string
-	Version   string
-	Filter    cli.StringSlice
+	User       string
+	Password   string
+	BaseDir    string
+	StartDate  time.Time
+	Rename     bool
+	Extract    bool
+	ExtractDir string
+	Filter     cli.StringSlice
 
 	releases []string
 }
@@ -84,12 +89,17 @@ func (c *getCmd) run(ctx *cli.Context) error {
 	if errGet != nil {
 		err = multierr.Append(err, errGet)
 	}
-
 	if err != nil {
 		return err
 	}
-
 	log.Infof("Downloaded <%d> releases, files <%d>", len(downloads), len(files))
+
+	if c.Extract {
+		err := c.extractFiles(files)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -101,7 +111,72 @@ func (c *getCmd) Cmd() *cli.Command {
 		Usage:     "Получение релиза сайта релизов 1С",
 		ArgsUsage: "RELEASE...",
 		CustomHelpTemplate: cli.CommandHelpTemplate + `ARGUMENTS:
-   RELEASE - описание релиза в формате platform83@8.3.18.1334
+   RELEASE - описание релиза в формате platform83[:filter.[filter]...]@8.3.18.1334
+                                           ^               ^                ^ 
+                                        имя проекта   набор фильтров   версия релиза
+                                                        (см. ниже)       (см. ниже)
+
+   > Имя проекта - подсмотреть можно в адресе, ссылки имею вид например https://releases.1c.ru/project/EnterpriseERP20
+   Синонимы проектов для быстрого доступа: 
+     * platform - platform83
+     * edt      - DevelopmentTools10
+     * ring     - EnterpriseLicenseTools
+     * executor - Executor
+     * pg       - AddCompPostgre
+
+   > Набор фильтров - список предопределенных фильтров для проектов:
+     - По ОС:
+       * win, windows  - фильтр по MS Windows
+       * mac           - фильтр по OS X
+       * deb           - фильтр по DEB-based Linux-систем
+       * rpm           - фильтр по RPM-based Linux-систем
+       Например, platform:deb - будет скачаны файлы с фильтрацией по DEB-based Linux-систем
+     
+     - По разрядности OS:
+       * x32           - фильтр по 32-bit (по умолчанию, если не указан фильтр разрядности) 
+       * x64           - фильтр по 64-bit  
+       Например, platform:deb.x64 - будет скачаны файлы с фильтрацией по DEB-based Linux-систем и 64-bit
+       
+     - Для проекта platform (platform83)
+       * thin-client, thin   - фильтр для файлов тонкого клиента 1С.Предприятие
+       * client              - фильтр для файлов клиента 1С.Предприятие
+       * server              - фильтр для файлов сервера 1С.Предприятие
+       * full                - фильтр для файлов "Технологическая платформа" (только для Windows)
+       Например, platform:deb.server.x64 - будет скачаны файлы сервера с фильтрацией по DEB-based Linux-систем и 64-bit 
+    
+    - Для проекта edt (DevelopmentTools10)
+       * jdk    - фильтр для файлов Bellsoft JDK
+       * online - фильтр для файлов онлайн установщика 1С:EDT
+
+       Например, edt:deb - будет скачаны файлы: 
+            - Дистрибутив для оффлайн установки 1C:EDT для ОС Linux 64 бит
+            - Bellsoft JDK Full (64-bit) для DEB-based Linux-систем
+   
+   > Версии релиза:
+       В версии релиза может быть указан номер версии или специальные фильтры версии.
+       Если версия релиза пустая то подставляется фильтр "latest" ( "edt" воспринимается как "edt@latest"
+       
+       Специальные фильтры версии релиза:
+         * latest           - выбирает наиболее старшую версию релиза
+         * latest:[regexp]  - фильтрует список версию по <regexp>, и берет наиболее старшую
+         * from:<date>      - фильтрует список версий по дате, у которых дата релиза больше <date> 
+            где, date - формате 02.06.21
+         * from-v:<version> - фильтрует список версий, которые старше версии релиза <version> 
+            где, version - формате номер версии
+         * <regexp>        - фильтрует список по регулярному выражению указанному в <regexp>
+
+       Примеры: 
+          1. "platform@from:01.01.21" - будут загружена все версии релизов, выпущенные начиная с даты 2020.01.01
+          2. "platform@from-v:8.3.16" - будут загружена все версии релизов, у которых версия старше чем 8.3.16
+          3. "platform@latest:8.3.16" - будут загружена последняя версия релиза 8.3.16
+          4. "platform@8.3.16"        - будут загружена все версии релизов 8.3.16
+   
+   > Пример полного использования:
+      Загрузка дистрибутивов платформа 1С.Предприятие последней версии 8.3.18 и 1C:EDT версии 2020.6.2 для OS Windows
+      - oneget get platform:win.x64@latest:8.3.18 edt:win@2020.6.2 
+      
+      Загрузка дистрибутивов платформа 1С.Предприятие последней версии 8.3.18 и 1C:EDT версии 2020.6.2 для OS X (Mac OS)
+      - oneget get platform:mac.x64@latest:8.3.18 edt:mac@2020.6.2 
 
 `,
 		Flags:  c.Flags(),
@@ -128,46 +203,15 @@ func (c *getCmd) Cmd() *cli.Command {
 func (c *getCmd) Flags() []cli.Flag {
 	return []cli.Flag{
 
-		&cli.StringFlag{
-			Destination: &c.Type,
-			EnvVars:     []string{"ONEGET_NICKS"},
-			Name:        "nick",
-			Usage: `Имена приложений (например \"platform83 или EnterpriseERP20\"), 
-					подсмотреть можно в адресе, ссылки имею вид например https://releases.1c.ru/project/EnterpriseERP20`,
-			//Required: true,
-		},
-		&cli.StringFlag{
-			Destination: &c.Version,
-			EnvVars:     []string{"ONEGET_NICKS_VERSION"},
-			Name:        "version",
-			Usage:       "Фильтр версий по номеру",
-			//Required:    true,
-		},
-		&cli.StringFlag{
-			Destination: &c.Version,
-			EnvVars:     []string{"ONEGET_NICKS_VERSION"},
-			Name:        "platform-filter",
-			Usage: `Фильтр по типу ОС для платформы (platform83)]
-							macOS - дистрибутив для OS X			
-							windows - дистрибутив для Windows			
-							deb - дистрибутив для DEB-based Linux-систем			
-							deb - дистрибутив для RPM-based Linux-систем			
-`,
-			//Required:    true,
-		},
-		&cli.TimestampFlag{
-			DefaultText: time.Now().Format("2006-01-02"),
-			Layout:      "2006-01-02",
-			EnvVars:     []string{"ONEGET_START_DATE"},
-			Name:        "start-date",
-			Usage:       "Фильтр версий по номеру",
-		},
 		&cli.StringSliceFlag{
 			Destination: &c.Filter,
-			EnvVars:     []string{"ONEGET_NICKS_FILTER"},
-			Aliases:     []string{"filter"},
-			Name:        "distrib-filter",
-			Usage:       "Дополнительный фильтр пакетов (регулярное выражение)",
+			EnvVars:     []string{"ONEGET_FILTER"},
+			Aliases:     []string{"F"},
+			Name:        "filter",
+			Usage: `Дополнительный фильтр пакетов (регулярное выражение)
+                          Задается для каждого типа релиза отдельно. 
+                          Например, edt=".*JDK.*"
+`,
 		},
 		&cli.StringFlag{
 			Destination: &c.BaseDir,
@@ -177,7 +221,87 @@ func (c *getCmd) Flags() []cli.Flag {
 			DefaultText: "./downloads",
 			Usage:       "Путь к каталогу выгрузки",
 		},
+		&cli.BoolFlag{
+			Name:        "extract",
+			Destination: &c.Extract,
+			Aliases:     []string{"E"},
+			EnvVars:     []string{"ONEGET_EXTRACT"},
+			Value:       false,
+			Usage:       "Распаковывать дистрибутив (только для файлов tar.gz)",
+		},
+		&cli.StringFlag{
+			Name:        "extract-path",
+			Destination: &c.ExtractDir,
+			EnvVars:     []string{"ONEGET_EXTRACT_PATH"},
+			Value:       "",
+			Usage:       "Каталог распаковки дистрибутива",
+		},
+		&cli.BoolFlag{
+			Name:        "rename",
+			Aliases:     []string{"R"},
+			Destination: &c.Rename,
+			EnvVars:     []string{"ONEGET_EXTRACT_RENAME"},
+			Value:       false,
+			Usage: `Переименовывать дистрибутивы при распаковке. 
+				Примеры: 
+					1c-enterprise-8.3.18.1334-client_8.3.18-1334_amd64.deb -> client-8.3.18.1334.deb
+					1c-enterprise83-server_8.3.16-1876_amd64.deb -> server_8.3.16-1876.deb`,
+		},
 	}
+}
+
+func (c *getCmd) extractFiles(files []string) error {
+
+	log.Infof("Extracting <files <%d>", len(files))
+
+	var mErr error
+	for _, file := range files {
+		if strings.ToLower(filepath.Ext(file)) == ".tar.gz" {
+			continue
+		}
+
+		extractDir := file + "_extract"
+
+		if len(c.ExtractDir) > 0 {
+			_, filename := filepath.Split(file)
+			extractDir = filepath.Join(c.ExtractDir, filename+"_extract")
+		}
+
+		err := unpacker.Extract(file, extractDir)
+		if err != nil {
+			log.Errorf(err.Error())
+			multierr.Append(mErr, err)
+			continue
+		}
+
+		if c.Rename {
+			files, err := ioutil.ReadDir(extractDir)
+			if err != nil {
+				log.Errorf("Error find files in dir <%s> to rename: %s", extractDir, err.Error())
+				multierr.Append(mErr, err)
+				continue
+			}
+			for _, file := range files {
+				if file.IsDir() {
+					continue
+				}
+				oldName := file.Name()
+				newName := unpacker.GetAliasesDistrib(oldName)
+				err := os.Rename(
+					filepath.Join(extractDir, oldName),
+					filepath.Join(extractDir, newName))
+				if err != nil {
+					log.Errorf("Error rename file <%s> to <%s>: %s", oldName, newName, err.Error())
+					multierr.Append(mErr, err)
+					continue
+				}
+
+			}
+
+		}
+	}
+
+	return mErr
 }
 
 func getMapFromStrings(arr []string, sep string, defValue string) map[string]string {
