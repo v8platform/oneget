@@ -22,7 +22,7 @@ export ONEC_PASSWORD=password
 oneget get --path ./tmp/dist/ platform@8.3.18.1334
 
 # or
-oneget --user user --pwd password get --path ./tmp/dist/ --nick platform83 --version 8.3.18.1334 --filter="deb64_.*.tar.gz$"
+oneget --user user --pwd password get --path ./tmp/dist/ platform83@8.3.18.1334
 
 ```
 
