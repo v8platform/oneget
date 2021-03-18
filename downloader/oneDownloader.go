@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -102,6 +103,32 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]string, error) {
 
 	return files, nil
 
+}
+
+// GetListProject ShowUnavailablePrograms bool // reverse for total/hideUnavailablePrograms=true
+func (dr *OnegetDownloader) GetListProject(showUnavailablePrograms bool) ([]ProjectInfo, error) {
+
+	client, err := NewClient(loginURL, releasesURL, dr.Login, dr.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	dr.client = client
+
+	totalurl := fmt.Sprintf("%s/total?hideUnavailablePrograms=%s", releasesURL,
+		strconv.FormatBool(!showUnavailablePrograms))
+
+	resp, err := dr.client.Get(totalurl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	list, err := dr.parser.ParseTotalReleases(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error parse total releases: %s", err.Error())
+	}
+	return list, err
 }
 
 func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDownload) error {
