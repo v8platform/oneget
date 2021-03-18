@@ -9,20 +9,15 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 )
 
-type Filter interface {
-	MatchString(source string) bool
-}
-
 type GetConfig struct {
 	BasePath string
 	Project  string
-	Version  string
-	Filters  []Filter
+	Version  VersionFilter
+	Filters  []FileFilter
 }
 
 type OnegetDownloader struct {
@@ -177,7 +172,7 @@ func (dr *OnegetDownloader) getProjectReleases(config GetConfig) ([]*ProjectVers
 	return filterProjectVersionInfo(releases, config.Version), nil
 
 }
-func filterReleaseFiles(list []ReleaseFileInfo, filters []Filter) (filteredList []ReleaseFileInfo) {
+func filterReleaseFiles(list []ReleaseFileInfo, filters []FileFilter) (filteredList []ReleaseFileInfo) {
 
 	if len(filters) == 0 || len(list) == 0 {
 		return list
@@ -211,25 +206,13 @@ func filterReleaseFiles(list []ReleaseFileInfo, filters []Filter) (filteredList 
 
 }
 
-func filterProjectVersionInfo(list []*ProjectVersionInfo, filter string) (filteredList []*ProjectVersionInfo) {
+func filterProjectVersionInfo(list []*ProjectVersionInfo, filter VersionFilter) (filteredList []*ProjectVersionInfo) {
 
-	if len(filter) == 0 || len(list) == 0 {
+	if len(list) == 0 {
 		return list
 	}
 
-	if strings.EqualFold(strings.ToLower(filter), "latest") {
-		return append(filteredList, list[0])
-	}
-
-	re, _ := regexp.Compile(filter)
-
-	for _, info := range list {
-		if re.MatchString(info.Name) {
-			filteredList = append(filteredList, info)
-		}
-	}
-
-	return
+	return filter.Filter(list)
 
 }
 

@@ -9,7 +9,7 @@ import (
 func Test_filterReleaseFiles(t *testing.T) {
 	type args struct {
 		list    []ReleaseFileInfo
-		filters []Filter
+		filters []FileFilter
 	}
 	tests := []struct {
 		name             string
@@ -32,10 +32,10 @@ func Test_filterReleaseFiles(t *testing.T) {
 						"/version_file?nick=Platform83&ver=8.3.18.1363&path=Platform%5C8_3_18_1363%5Caddin_8_3_18_1363.zip",
 					},
 				},
-				filters: []Filter{
+				filters: []FileFilter{
 					regexp.MustCompile(".*deb32.tar.gz"),
 					regexp.MustCompile("Технология внешних компонент"),
-					NewFilterMust(Platform83Project, "thin.deb"),
+					NewFileFilterMust(Platform83Project, "thin.deb"),
 				},
 			},
 			2,
@@ -58,8 +58,8 @@ func Test_filterReleaseFiles(t *testing.T) {
 						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6_2%5C1c_edt_distr_offline_2020.6.2_8_windows_x86_64.zip",
 					},
 				},
-				filters: []Filter{
-					NewFilterMust("DevelopmentTools10", "deb"),
+				filters: []FileFilter{
+					NewFileFilterMust("DevelopmentTools10", "deb"),
 				},
 			},
 			2,
@@ -82,8 +82,8 @@ func Test_filterReleaseFiles(t *testing.T) {
 						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6%5Cbellsoft_jdk11.0.9_12_linux_amd64_full.rpm",
 					},
 				},
-				filters: []Filter{
-					NewFilterMust("DevelopmentTools10", "deb"),
+				filters: []FileFilter{
+					NewFileFilterMust("DevelopmentTools10", "deb"),
 				},
 			},
 			2,
@@ -106,8 +106,8 @@ func Test_filterReleaseFiles(t *testing.T) {
 						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6%5Cbellsoft_jdk11.0.9_12_linux_amd64_full.rpm",
 					},
 				},
-				filters: []Filter{
-					NewFilterMust("DevelopmentTools10", "deb.jdk.x64"),
+				filters: []FileFilter{
+					NewFileFilterMust("DevelopmentTools10", "deb.jdk.x64"),
 				},
 			},
 			1,

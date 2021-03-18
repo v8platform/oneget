@@ -54,19 +54,22 @@ func (c *getCmd) run(ctx *cli.Context) error {
 		projectId := dloader.GetProjectIDByAlias(projectIdAliase)
 		projectFilters := compileFilters(filtersStr[projectId]...)
 
-		if filters, err := getProjectFilter(project); filters != nil {
-			projectFilters = append(projectFilters, filters)
-		} else {
-			if err != nil {
-				log.Errorf("error get project <%s> filters: %s", projectIdAliase, err.Error())
-				continue
-			}
+		if fileFilter, err := getProjectFilter(project); err != nil {
+			log.Errorf("error get project <%s> file filter: %s", projectIdAliase, err.Error())
+			return fmt.Errorf("project <%s> %s", projectIdAliase, err.Error())
+		} else if fileFilter != nil {
+			projectFilters = append(projectFilters, fileFilter)
+		}
+
+		versionFilter, err := dloader.NewVersionFilter(projectId, version)
+		if err != nil {
+			return err
 		}
 
 		downloads = append(downloads, dloader.GetConfig{
 			BasePath: c.BaseDir,
 			Project:  projectId,
-			Version:  version,
+			Version:  versionFilter,
 			Filters:  projectFilters,
 		})
 	}
@@ -235,8 +238,8 @@ func getProjectId(project string) string {
 
 }
 
-func compileFilters(filters ...string) []dloader.Filter {
-	var result []dloader.Filter
+func compileFilters(filters ...string) []dloader.FileFilter {
+	var result []dloader.FileFilter
 	for _, filter := range filters {
 
 		compile := regexp.MustCompile(filter)
@@ -247,14 +250,14 @@ func compileFilters(filters ...string) []dloader.Filter {
 	return result
 }
 
-func getProjectFilter(project string) (dloader.Filter, error) {
+func getProjectFilter(project string) (dloader.FileFilter, error) {
 
 	values := strings.SplitN(project, ":", 2)
 
 	key := values[0]
 
 	if len(values) == 2 {
-		return dloader.NewFilter(dloader.GetProjectIDByAlias(key), values[1])
+		return dloader.NewFileFilter(dloader.GetProjectIDByAlias(key), values[1])
 	}
 	return nil, nil
 }
