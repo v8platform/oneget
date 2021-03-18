@@ -48,8 +48,8 @@ func Test_filterReleaseFiles(t *testing.T) {
 						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6_2%5C1c_edt_distr_2020.6.2_8_windows_x86_64.zip",
 					},
 					{
-						"Дистрибутив 1C:EDT для ОС Linux 64 бит",
-						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6_2%5C1c_edt_distr_2020.6.2_8_linux_x86_64.tar.gz",
+						"Дистрибутив для оффлайн установки 1C:EDT для ОС Linux 64 бит",
+						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6_2%5C1c_edt_distr_offline_2020.6.2_8_linux_x86_64.tar.gz",
 					}, {
 						"Bellsoft JDK Full (64-bit) для Windows",
 						"/version_file?nick=DevelopmentTools10&ver=2020.6.2&path=DevelopmentTools%5C2020_6%5Cbellsoft_jdk11.0.9_12_windows_amd64_full.msi",
@@ -62,7 +62,7 @@ func Test_filterReleaseFiles(t *testing.T) {
 					NewFileFilterMust("DevelopmentTools10", "deb"),
 				},
 			},
-			2,
+			1,
 		}, {
 			"DevelopmentTools10 with Bellsoft JDK",
 			args{
