@@ -214,6 +214,7 @@ appenders:
     - name: FILE
       file_name: ./logs/oneget.log
       max_size: 100
+      max_age: 10
       encoder:
         json:
 loggers:
