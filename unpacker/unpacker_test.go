@@ -18,11 +18,10 @@ func TestUnpackTarGz(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	currentDir, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
 	}
-	path := filepath.Join(currentDir, "test", "fixtures","linux", "client")
+	path := filepath.Join("fixtures","linux", "client")
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		log.Fatal(err)
@@ -30,7 +29,7 @@ func TestUnpackTarGz(t *testing.T) {
 
 	for _, file := range files {
 		fileName := file.Name()
-		Extract(filepath.Join("test", "fixtures","linux", "client", fileName), tempDir)
+		Extract(filepath.Join( "fixtures","linux", "client", fileName), tempDir)
 
 		fileGZ := fileName[:len(fileName) - len(filepath.Ext(fileName))]
 		dirName := fileGZ[:len(fileGZ) - len(filepath.Ext(fileGZ))]
