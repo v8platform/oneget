@@ -67,6 +67,13 @@ func TestNameAliases_8_3_18_1334(t *testing.T) {
 		"1c-enterprise-8.3.18.1334-client-nls_8.3.18-1334_amd64.deb",
 		"1c-enterprise-8.3.18.1334-thin-client_8.3.18-1334_amd64.deb",
 		"1c-enterprise-8.3.18.1334-thin-client-nls_8.3.18-1334_amd64.deb",
+		"1c-enterprise-8.3.18.1363-common_8.3.18-1363_amd64.deb",
+		"1c-enterprise-8.3.18.1363-common-nls_8.3.18-1363_amd64.deb",
+		"1c-enterprise-8.3.18.1363-crs_8.3.18-1363_amd64.deb",
+		"1c-enterprise-8.3.18.1363-server_8.3.18-1363_amd64.deb",
+		"1c-enterprise-8.3.18.1363-server-nls_8.3.18-1363_amd64.deb",
+		"1c-enterprise-8.3.18.1363-ws_8.3.18-1363_amd64.deb",
+		"1c-enterprise-8.3.18.1363-ws-nls_8.3.18-1363_amd64.deb",
 	}
 
 	checkAliases(t, distrNames)
