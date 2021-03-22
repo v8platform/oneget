@@ -24,5 +24,5 @@ jobs:
       - name: Run Test windows-latest
         if: runner.os == 'Windows'
         run: |
-          go test -coverprofile=coverage.out ./...
+          go test ./...
         shell: cmd
