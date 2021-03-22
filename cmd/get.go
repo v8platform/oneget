@@ -273,6 +273,7 @@ func (c *getCmd) extractFiles(files []string) error {
 			multierr.Append(mErr, err)
 			continue
 		}
+		log.Infof("Path to extracting files <%d>", extractDir)
 
 		if c.Rename {
 			err := renameFiles(extractDir)
@@ -306,7 +307,7 @@ func renameFiles(dir string) error {
 			log.Errorf("Error rename file <%s> to <%s>: %s", oldName, newName, err.Error())
 			continue
 		}
-
+		log.Infof("New name files <%d>", newName)
 	}
 	return nil
 }
