@@ -256,7 +256,7 @@ func (c *getCmd) extractFiles(files []string) error {
 
 	var mErr error
 	for _, file := range files {
-		if strings.ToLower(filepath.Ext(file)) != ".tar.gz" {
+		if strings.ToLower(filepath.Ext(file)) != ".gz" {
 			continue
 		}
 
