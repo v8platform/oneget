@@ -299,7 +299,7 @@ func (dr *OnegetDownloader) downloadFile(fileToDownload *FileToDownload) (string
 	workDir := filepath.Join(fileToDownload.basePath, strings.ToLower(fileToDownload.path))
 	fileName := filepath.Join(workDir, fileToDownload.name)
 	_, err := os.Stat(fileName)
-	if os.IsExist(err) {
+	if err == nil {
 		return fileName, nil
 	}
 	if os.IsNotExist(err) {

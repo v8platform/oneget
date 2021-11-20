@@ -7,6 +7,7 @@ import (
 	"go.uber.org/multierr"
 	"io/ioutil"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -72,7 +73,7 @@ func (c *getCmd) run(ctx *cli.Context) error {
 		}
 
 		downloads = append(downloads, dloader.GetConfig{
-			BasePath: c.BaseDir,
+			BasePath: getAbsolutePath(c.BaseDir),
 			Project:  projectId,
 			Version:  versionFilter,
 			Filters:  projectFilters,
@@ -217,8 +218,8 @@ func (c *getCmd) Flags() []cli.Flag {
 			Destination: &c.BaseDir,
 			Name:        "path",
 			Aliases:     []string{"out"},
-			Value:       "./downloads",
-			DefaultText: "./downloads",
+			Value:       getAbsolutePath("downloads"),
+			DefaultText: getAbsolutePath("downloads"),
 			Usage:       "Путь к каталогу выгрузки",
 		},
 		&cli.BoolFlag{
@@ -391,4 +392,16 @@ func getProjectFilter(project string) (dloader.FileFilter, error) {
 		return dloader.NewFileFilter(dloader.GetProjectIDByAlias(key), values[1])
 	}
 	return nil, nil
+}
+
+func getAbsolutePath(p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Errorf("Error getting current path %s", err.Error())
+	}
+	return path.Join(dir, p)
 }
