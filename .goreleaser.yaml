@@ -41,7 +41,7 @@ dockers:
       - 'ghcr.io/thedemoncat/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
       - 'ghcr.io/thedemoncat/{{.ProjectName}}:latest'
     dockerfile: Dockerfile
-    binaries:
+    ids:
       - oneget
     build_flag_templates:
       - "--label=org.label-schema.schema-version=1.0"
