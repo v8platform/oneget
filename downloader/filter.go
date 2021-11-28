@@ -17,13 +17,13 @@ const (
 	x64re     = "(?smU)(?:64-bit|64 бит).*"
 	rpmre     = "(?smU)(?:RPM|ОС Linux|для Linux$|tar.bz2).*"
 	debre     = "(?smU)(?:DEB|ОС Linux|для Linux$|tar.bz2).*"
+	linuxre   = "(?smU)(?:LINUX|ОС Linux|для Linux$|tar.bz2).*"
 	windowsre = "(?smU)(?:Windows|ОС Windows|zip).*"
 	osxre     = "(?smU)(?:OS X|macOS|MacOS|ОС macOS).*"
-
-	clientre      = "(?smU)Клиент"
-	serverre      = "(?smU)(?:Cервер|Сервер)"
-	thinre        = "(?smU)Тонкий клиент"
-	fullwindowsre = "(?smU)Технологическая платформа"
+	clientre  = "(?smU)Клиент"
+	serverre  = "(?smU)(?:Cервер|Сервер)"
+	thinre    = "(?smU)Тонкий клиент"
+	fullre    = "(?smU)Технологическая платформа"
 )
 
 /*
@@ -44,7 +44,7 @@ var (
 		"edt":      EDTProject,
 		"ring":     "EnterpriseLicenseTools",
 		"executor": "Executor",
-		"pg":       "AddCompPostgre",
+		"pg":       "AddCompPostgres",
 	}
 
 	shortFilters = map[string]string{
@@ -53,6 +53,7 @@ var (
 		"win":         windowsre,
 		"deb":         debre,
 		"rpm":         rpmre,
+		"linux":       linuxre,
 		"x64":         x64re,
 		"client":      clientre,
 		"server":      serverre,
@@ -60,7 +61,7 @@ var (
 		"thin":        thinre,
 		"online":      "edt.online",
 		"jdk":         "edt.jdk",
-		"full":        fullwindowsre,
+		"full":        fullre,
 	}
 
 	x64Regexp = regexp.MustCompile(x64re)
