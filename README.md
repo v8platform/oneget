@@ -20,10 +20,6 @@
 export ONEC_USERNAME=user
 export ONEC_PASSWORD=password
 oneget get --path ./tmp/dist/ platform@8.3.18.1334
-
-# or
-oneget --user user --pwd password get --path ./tmp/dist/ platform83@8.3.18.1334
-
 ```
 
 #### Описание формата аргумента `RELEASE`
@@ -165,37 +161,73 @@ oneget --user user --pwd password get --path ./tmp/dist/ platform83@8.3.18.1334
 
   # скачать файлы последней версию релиза 1C:EDT для Windows
   oneget get edt:win@latest 
-  # or / или
-  # oneget get edt:win
    
   # скачать файлы Платформы 1С. Предприятие для всех систем
   # всех версии релизов, выпущенные начиная с даты 2020.01.01
-  oneget platform@from:01.01.21
+  oneget get platform@from:01.01.21
   
   # скачать файлы Платформы 1С. Предприятие для DEB-based Linux-систем
-  # всех версии релизов, у которых версия старше чем 8.3.18.1363
-  oneget platform:deb.x64@from-v:8.3.18.1363
+  # всех версии релизов, у которых версия старше чем 8.3.18.1363 но ниже 8.3.20
+  oneget get platform:deb.x64@from-v:8.3.18.1363
  
- 
+  # скачать Платформу 1С. Предприятие для всех Linux-систем (.run)
+  # всех версии релизов, у которых версия старше чем 8.3.20
+  oneget get platform:linux.x64@8.3.20.1674
+
   # скачать файлы сервера Платформы 1С. Предприятие для DEB-based Linux-систем
   # последней выпущенной версии 8.3.16
-  oneget platform:deb.server.x64@latest:8.3.16
+  oneget get platform:deb.server.x64@latest:8.3.16
  
   # скачать файлы Платформы 1С. Предприятие для OSX
   # всех версии релизов 8.3.16.x
-  oneget platform:mac@8.3.16
+  oneget get platform:mac@8.3.16
 ```
+
+## Запуск файлового сервера
+
+с версиии oneget v0.4.0 реализованна поддержка файловго сервера. 
+Запуск сервера осуществляется флагом `--enableHttp` или установкой для переменной среды `$ONEGET_ENABLE_HTTP_SERVER`.
+Порт по умолчанию - `8080` или переопределяется параметром `--serverPort` или переменной среды `$ONEGET_HTTP_SERVER_PORT`
+
+Пример запуска:
+
+```
+oneget --user $ONEC_USERNAME --pwd $ONEC_PASSWORD --enableHttp  --serverPort 9000 get platform:linux.x64@8.3.20.1674
+```
+
+После запуска файловый сервер будет доступен по адресу: `http://localhost:9000`
+
+Рабочий каталог файлового сервера определяется параметром запуска `--path` или переменными среды `$ONEGET_PATH, $ONEC_PATH`. По умолчанию /downloads
 
 ## Запуск в докере
 
+### Каласический запуск приложения для загрузки дистрибутивов с https://users.1c.ru
+
 ```shell
-docker run -v $(pwd):/tmp/dist demoncat/oneget \
+docker run -v $(pwd):/tmp/dist v8platform/oneget \
     --user $ONEC_USERNAME \
     --pwd $ONEC_PASSWORD \
-    --path /tmp/dist/ \
-    --nicks platform83 \
-    --version-filter 8.3.16.1876 \
-    --distrib-filter 'deb64.tar.gz$'
+    get \
+    platform:linux.x64@8.3.20.1674 \
+```
+
+### Запуск файлового сервера с публикацией дистрибутива 8.3.20.1674 через http
+
+Важно: В текущем образе установлен HEALTHCHECK ,который устанавливает статус контейнера как rehealth: starting, до того момента пока файловый сервер не начинает отвечать на запрос curl.
+По этому, запуск контейнера может достаточно долгий, и зависит от скорости загрузки дистрибутива и ех объемов.
+Если не требуется ожидание запуска, то можно использовать образ v8platform/oneget:v0.4.0. В этом случае контейнер запустится, но файловый сервер будет недоступен, пое не закачаются все дистрибутивы
+
+```shell
+docker run \
+    -p 8080:8080 \
+    oneget-http \
+    --user $ONEC_USERNAME \
+    --pwd $ONEC_PASSWORD \
+    --enableHttp \
+    --debug \
+    get \
+    --path /tmp/download \
+    platform:linux.full.x64@8.3.20.1674
 ```
 
 ## Настройка логов
