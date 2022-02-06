@@ -4,11 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/khorevaa/logos"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
 	"sync"
+)
+
+var releasesURL = "https://releases.1c.ru"
+var loginURL = "https://login.1c.ru"
+
+var log = logos.New("github.com/v8platform/oneget/downloader").Sugar()
+
+const (
+	projectHrefPrefix = "/project/"
+	tempFileSuffix    = ".d1c"
 )
 
 func NewClient(loginUrl string, baseUrl string, login string, password string) (*Client, error) {

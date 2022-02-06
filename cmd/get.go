@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/khorevaa/logos"
+	server "github.com/v8platform/oneget/http-server"
 	"github.com/v8platform/oneget/unpacker"
 	"go.uber.org/multierr"
 	"io/ioutil"
@@ -20,14 +21,16 @@ import (
 var log = logos.New("github.com/v8platform/oneget").Sugar()
 
 type getCmd struct {
-	User       string
-	Password   string
-	BaseDir    string
-	StartDate  time.Time
-	Rename     bool
-	Extract    bool
-	ExtractDir string
-	Filter     cli.StringSlice
+	User         string
+	Password     string
+	BaseDir      string
+	StartDate    time.Time
+	Rename       bool
+	Extract      bool
+	ExtractDir   string
+	Filter       cli.StringSlice
+	EnableServer bool
+	ServerPort   string
 
 	releases []string
 }
@@ -102,6 +105,11 @@ func (c *getCmd) run(ctx *cli.Context) error {
 		}
 	}
 
+	c.EnableServer = ctx.Bool("enableHttp")
+	c.ServerPort = ctx.String("serverPort")
+	if c.EnableServer {
+		server.Run(getAbsolutePath(c.BaseDir), c.ServerPort)
+	}
 	return nil
 }
 
@@ -128,9 +136,10 @@ func (c *getCmd) Cmd() *cli.Command {
    > Набор фильтров - список предопределенных фильтров для проектов:
      - По ОС:
        * win, windows  - фильтр по MS Windows
+       * linux         - фильтр по Linux (для платформы выше 8.3.20)
        * mac           - фильтр по OS X
-       * deb           - фильтр по DEB-based Linux-систем
-       * rpm           - фильтр по RPM-based Linux-систем
+       * deb           - фильтр по DEB-based Linux-систем (для платформы ниже 8.3.20)
+       * rpm           - фильтр по RPM-based Linux-систем (для платформы ниже 8.3.20)
        Например, platform:deb - будет скачаны файлы с фильтрацией по DEB-based Linux-систем
      
      - По разрядности OS:
@@ -230,13 +239,6 @@ func (c *getCmd) Flags() []cli.Flag {
 			Value:       false,
 			Usage:       "Распаковывать дистрибутив (только для файлов tar.gz)",
 		},
-		&cli.StringFlag{
-			Name:        "extract-path",
-			Destination: &c.ExtractDir,
-			EnvVars:     []string{"ONEGET_EXTRACT_PATH"},
-			Value:       "",
-			Usage:       "Каталог распаковки дистрибутива",
-		},
 		&cli.BoolFlag{
 			Name:        "rename",
 			Aliases:     []string{"R"},
@@ -261,7 +263,7 @@ func (c *getCmd) extractFiles(files []string) error {
 			continue
 		}
 
-		extractDir := file + "_extract"
+		extractDir := strings.Replace(file, "_", ".", -1) + ".extract"
 
 		if len(c.ExtractDir) > 0 {
 			_, filename := filepath.Split(file)

@@ -20,6 +20,13 @@ type GetConfig struct {
 	Filters  []FileFilter
 }
 
+type FileToDownload struct {
+	url      []string
+	basePath string
+	path     string
+	name     string
+}
+
 type OnegetDownloader struct {
 	Login, Password string
 

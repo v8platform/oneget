@@ -1,0 +1,9 @@
+FROM alpine:latest
+COPY oneget /
+RUN set -x; \
+    chmod +x /oneget
+ENV ONEGET_HTTP_SERVER_PORT=8080
+ENV ONEGET_ENABLE_HTTP_SERVER=true
+HEALTHCHECK --interval=5m --timeout=3s \
+  CMD curl -f http://localhost:$ONEGET_HTTP_SERVER_PORT/ || exit 1
+ENTRYPOINT ["/oneget"]
