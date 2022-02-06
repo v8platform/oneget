@@ -52,12 +52,12 @@ dockers:
       - "--label=homepage=https://github.com/v8platform/oneget"
       - "--label=maintainer=Ruslan Zhdanov"
   - image_templates:
-      - 'demoncat/{{.ProjectName}}:{{ .Tag }}'
-      - 'demoncat/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
-      - 'demoncat/{{.ProjectName}}:latest'
-      - 'ghcr.io/v8platform/{{.ProjectName}}:{{ .Tag }}'
-      - 'ghcr.io/v8platform/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
-      - 'ghcr.io/v8platform/{{.ProjectName}}:latest'
+      - 'v8platform/{{.ProjectName}}-http:{{ .Tag }}'
+      - 'v8platform/{{.ProjectName}}-http:v{{ .Major }}.{{ .Minor }}'
+      - 'v8platform/{{.ProjectName}}-http:latest'
+      - 'ghcr.io/v8platform/{{.ProjectName}}-http:{{ .Tag }}'
+      - 'ghcr.io/v8platform/{{.ProjectName}}-http:v{{ .Major }}.{{ .Minor }}'
+      - 'ghcr.io/v8platform/{{.ProjectName}}-http:latest'
     dockerfile: Dockerfile_s
     ids:
       - oneget
