@@ -15,10 +15,7 @@ builds:
       - darwin
       - windows
     goarch:
-      #      - 386
       - amd64
-#      - arm
-#      - arm64
 dist: dist
 
 checksum:
@@ -37,9 +34,9 @@ dockers:
       - 'demoncat/{{.ProjectName}}:{{ .Tag }}'
       - 'demoncat/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
       - 'demoncat/{{.ProjectName}}:latest'
-      - 'ghcr.io/thedemoncat/{{.ProjectName}}:{{ .Tag }}'
-      - 'ghcr.io/thedemoncat/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
-      - 'ghcr.io/thedemoncat/{{.ProjectName}}:latest'
+      - 'ghcr.io/v8platform/{{.ProjectName}}:{{ .Tag }}'
+      - 'ghcr.io/v8platform/{{.ProjectName}}:v{{ .Major }}.{{ .Minor }}'
+      - 'ghcr.io/v8platform/{{.ProjectName}}:latest'
     dockerfile: Dockerfile
     ids:
       - oneget
