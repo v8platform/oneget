@@ -220,7 +220,7 @@ docker run -v $(pwd):/tmp/dist v8platform/oneget \
 ```shell
 docker run \
     -p 8080:8080 \
-    oneget-http \
+    v8platform/oneget-http:0.4.0 \
     --user $ONEC_USERNAME \
     --pwd $ONEC_PASSWORD \
     --enableHttp \
@@ -277,4 +277,4 @@ loggers.logger.0.appender_refs.1=FILE;"
 ```
 #TODO
 
-Идея и часть кода взята из [этого](https://github.com/korableg/Downloader1C) проекта 
+Идея взята из [этого](https://github.com/korableg/Downloader1C) проекта 
