@@ -227,8 +227,11 @@ docker run \
     --debug \
     get \
     --path /tmp/download \
-    platform:linux.full.x64@8.3.20.1674
+    --extract \
+    platform:linux.full.x64@8.3.20.1674 
 ```
+
+После скачивания дистрибутивов и перевода контейнера в статус `UP` дистрибутивы платформы будут доступны по URL `http://localhost:8080`
 
 ## Настройка логов
 
