@@ -1,0 +1,25 @@
+appenders:
+  console:
+    - name: CONSOLE
+      target: stdout
+      encoder:
+        console:
+
+  rolling_file:
+    - name: FILE
+      file_name: ./logs/oneget.log
+      max_size: 100
+      max_age: 10
+      encoder:
+        json:
+loggers:
+  root:
+    level: info
+    appender_refs:
+      - CONSOLE
+  logger:
+    - name: "github.com/v8platform/oneget"
+      appender_refs:
+        - CONSOLE
+        - FILE
+      level: debug

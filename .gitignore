@@ -1,0 +1,15 @@
+*.exe
+*.zip
+*.deb
+oneget
+
+logs
+downloads
+dist
+.idea
+*.logs
+
+/platform83/
+*.d1c
+pack
+
