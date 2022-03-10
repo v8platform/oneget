@@ -133,7 +133,7 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust(PostgreSQLProject, "pg:deb.x64@14.1-2.1C"),
+					NewFileFilterMust(PostgreSQLProject, "deb.x64@14.1-2.1C"),
 				},
 			},
 			2,
