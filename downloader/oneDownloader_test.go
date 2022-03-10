@@ -111,6 +111,27 @@ func Test_filterReleaseFiles(t *testing.T) {
 				},
 			},
 			1,
+		}, {
+			"PosqtreSQL with 14.1-2.1C",
+			args{
+				list: []ReleaseFileInfo{
+					{
+						"Дистрибутив СУБД PostgreSQL для Windows (64-bit) одним архивом",
+						"/version_file?nick=AddCompPostgre&ver=14.1-2.1C&path=AddCompPostgre%5c14_1_2_1C%5cpostgresql_14.1_2.1C_x64.zip",
+					},
+					{
+						"Дистрибутив СУБД PostgreSQL для Linux x86 (64-bit) одним архивом (RPM)",
+						"/version_file?nick=AddCompPostgre&ver=14.1-2.1C&path=AddCompPostgre%5c14_1_2_1C%5cpostgresql_14.1_2.1C_x86_64_rpm.tar.bz2",
+					}, {
+						"Дистрибутив СУБД PostgreSQL для Linux x86 (64-bit) одним архивом (DEB)",
+						"/version_file?nick=AddCompPostgre&ver=14.1-2.1C&path=AddCompPostgre%5c14_1_2_1C%5cpostgresql_14.1_2.1C_amd64_deb.tar.bz2",
+					},
+				},
+				filters: []FileFilter{
+					NewFileFilterMust(PostgreSQLProject, "deb"),
+				},
+			},
+			2,
 		},
 	}
 	for _, tt := range tests {
