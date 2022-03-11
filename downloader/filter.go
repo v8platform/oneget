@@ -12,6 +12,7 @@ import (
 const (
 	Platform83Project = "Platform83"
 	EDTProject        = "DevelopmentTools10"
+	PostgreSQLProject        = "AddCompPostgre"
 )
 const (
 	x64re     = "(?smU)(?:64-bit|64 бит).*"
@@ -44,7 +45,7 @@ var (
 		"edt":      EDTProject,
 		"ring":     "EnterpriseLicenseTools",
 		"executor": "Executor",
-		"pg":       "AddCompPostgres",
+		"pg":       PostgreSQLProject,
 	}
 
 	shortFilters = map[string]string{
@@ -95,6 +96,8 @@ func NewFileFilter(project string, filter string) (FileFilter, error) {
 
 	switch project {
 	case Platform83Project:
+		return newPlatformMatchFilter(filter)
+	case PostgreSQLProject:
 		return newPlatformMatchFilter(filter)
 	case EDTProject:
 		return newEdtFilter(filter)
