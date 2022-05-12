@@ -11,7 +11,7 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/xelaj/go-dry v0.0.0-20210221174141-040b89cd6129
 	go.uber.org/multierr v1.5.0
-	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
+	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c // indirect
 )

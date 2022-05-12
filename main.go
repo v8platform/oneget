@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/khorevaa/logos"
 	"github.com/urfave/cli/v2"
 	"github.com/v8platform/oneget/cmd"
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	version = "v0.4.0"
+	version = "dev"
 	commit  = ""
 	date    = ""
 	builtBy = ""
