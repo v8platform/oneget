@@ -8,7 +8,7 @@
 
 ### Получение тикета 1С
 
-POST https://login.1c.ru/rest/public/ticket/get
+POST https://login.1c.eu/rest/public/ticket/get
 Content-Type: application/json
 
 {
@@ -25,6 +25,7 @@ Content-Type: application/json
 
 GET https://login.1c.ru/ticket/auth?token={{ticket}}
 Content-Type: application/json
+User-Agent: 1C+Enterprise/8.3
 
 
 ### Авторизация на сервисе 1С
@@ -36,4 +37,7 @@ Content-Type: application/json
   "login": "{{login}}",
   "password": "{{password}}"
 }
+
+###
+GET https://releases.1c.ru/project/AddCompPostgre
 
