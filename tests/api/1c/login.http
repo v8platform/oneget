@@ -1,0 +1,21 @@
+
+### Получение тикета 1С
+
+POST https://login.1c.ru/rest/public/ticket/get
+Content-Type: application/json
+
+{
+  "login": "{{login}}",
+  "password": "{{password}}",
+  "serviceNick": "https://releases.1c.ru"
+}
+
+
+> {% client.global.set("ticket", response.body.ticket); %}
+
+
+###
+
+GET https://login.1c.ru/ticket/auth?token={{ticket}}
+Content-Type: application/json
+
