@@ -1,0 +1,43 @@
+# Возвращает тикет аутентификации пользователя на портале поддержки.
+# Возвращенный тикет может быть проверен вызовом операции checkTicket()
+# сервиса https://login.1c.ru/api/public/ticket?wsdl или
+# https://login.1c.eu/api/public/ticket?wsdl.
+# Получение тикета выполняется в соответствии с настройками
+# библиотеки:
+# доменная зона серверов (1c.ru или 1c.eu);
+
+### Получение тикета 1С
+
+POST https://login.1c.eu/rest/public/ticket/get
+Content-Type: application/json
+
+{
+  "login": "{{login}}",
+  "password": "{{password}}",
+  "serviceNick": "https://releases.1c.ru"
+}
+
+
+> {% client.global.set("ticket", response.body.ticket); %}
+
+
+### Использование тикета
+
+GET https://login.1c.ru/ticket/auth?token={{ticket}}
+Content-Type: application/json
+User-Agent: 1C+Enterprise/8.3
+
+
+### Авторизация на сервисе 1С
+
+POST https://login.1c.ru/rest/public/user/auth
+Content-Type: application/json
+
+{
+  "login": "{{login}}",
+  "password": "{{password}}"
+}
+
+###
+GET https://releases.1c.ru/project/AddCompPostgre
+

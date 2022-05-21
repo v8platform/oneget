@@ -13,3 +13,4 @@ dist
 *.d1c
 pack
 
+/tests/api/1c/http-client.private.env.json
