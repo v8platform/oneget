@@ -1,6 +1,8 @@
 package downloader
 
 import (
+	"github.com/stretchr/testify/assert"
+	"os"
 	"reflect"
 	"regexp"
 	"testing"
@@ -146,4 +148,58 @@ func Test_filterReleaseFiles(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOnegetDownloader_Platform_getFilesExist(t *testing.T) {
+	platform := "Platform83"
+	// Список существующих платформ
+	versions := []string{
+		"8.3.21.1302",
+		"8.3.21.1302",
+	}
+	for _, ver := range versions {
+		assert.True(t, releaseExist(t, platform, ver))
+	}
+
+}
+
+func TestOnegetDownloader_Platform_getFilesNotExist(t *testing.T) {
+	platform := "Platform83"
+	// Список существующих платформ
+	versions := []string{
+		"8.3.22.1672",
+		"8.3.21.1607",
+	}
+	for _, ver := range versions {
+		assert.False(t, releaseExist(t, platform, ver))
+	}
+}
+
+func getAuth(t *testing.T) (string, string) {
+	login := os.Getenv("User")
+	pwd := os.Getenv("Password")
+
+	if login == "" || pwd == "" {
+		t.Skipf("Параметры авторизации на https://releases.1c.eu не заданы. тест пропускаем")
+	}
+	return login, pwd
+}
+
+func releaseExist(t *testing.T, platform string, ver string) bool {
+	login, pwd := getAuth(t)
+	dl := NewDownloader(
+		login,
+		pwd,
+	)
+	dl.client, _ = NewClient(loginURL, releasesURL, login, pwd)
+
+	versionFilter, _ := NewVersionFilter("", ver)
+	config := GetConfig{
+		Project: platform,
+		Version: versionFilter,
+		Filters: nil,
+	}
+	releases, _ := dl.getProjectReleases(config)
+	return len(releases) != 0
+
 }
