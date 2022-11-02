@@ -156,6 +156,8 @@ func TestOnegetDownloader_Platform_getFilesExist(t *testing.T) {
 	versions := []string{
 		"8.3.21.1302",
 		"8.3.21.1302",
+		"8.3.22.1672",
+		"8.3.21.1607",
 	}
 	for _, ver := range versions {
 		assert.True(t, releaseExist(t, platform, ver))
@@ -163,15 +165,15 @@ func TestOnegetDownloader_Platform_getFilesExist(t *testing.T) {
 
 }
 
+// На текущий момент тест не актуален, так как релизы все доступны
 func TestOnegetDownloader_Platform_getFilesNotExist(t *testing.T) {
 	platform := "Platform83"
 	// Список существующих платформ
 	versions := []string{
 		"8.3.22.1672",
-		"8.3.21.1607",
 	}
 	for _, ver := range versions {
-		assert.False(t, releaseExist(t, platform, ver))
+		assert.True(t, releaseExist(t, platform, ver))
 	}
 }
 

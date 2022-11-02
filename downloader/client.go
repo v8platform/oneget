@@ -12,8 +12,8 @@ import (
 	"sync"
 )
 
-var releasesURL = "https://releases.1c.eu"
-var loginURL = "https://login.1c.eu"
+var releasesURL = "https://releases.1c.ru"
+var loginURL = "https://login.1c.ru"
 
 var log = logos.New("github.com/v8platform/oneget/downloader").Sugar()
 

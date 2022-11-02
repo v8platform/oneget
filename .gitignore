@@ -14,3 +14,4 @@ dist
 pack
 
 /tests/api/1c/http-client.private.env.json
+tests/api/1c/http-client.env.json
