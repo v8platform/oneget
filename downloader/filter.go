@@ -12,7 +12,7 @@ import (
 const (
 	Platform83Project = "Platform83"
 	EDTProject        = "DevelopmentTools10"
-	PostgreSQLProject        = "AddCompPostgre"
+	PostgreSQLProject = "AddCompPostgre"
 )
 const (
 	x64re     = "(?smU)(?:64-bit|64 бит).*"
@@ -76,10 +76,54 @@ type VersionFilter interface {
 	Filter(source []*ProjectVersionInfo) (result []*ProjectVersionInfo)
 }
 
+type EdtMatchFilter struct {
+	filters        []*regexp.Regexp
+	matchOffline   bool
+	matchOfflineRe []*regexp.Regexp
+	distrRe        []*regexp.Regexp
+}
+
 type PlatformMatchFilter struct {
 	filters      []*regexp.Regexp
 	x64bitMatch  bool
 	x64bitRegexp *regexp.Regexp
+}
+type PostgreSqlMatchFilter struct {
+	filters      []*regexp.Regexp
+	x64bitMatch  bool
+	x64bitRegexp *regexp.Regexp
+}
+
+func (p PostgreSqlMatchFilter) MatchString(source string) bool {
+	if p.x64bitRegexp.MatchString(source) != p.x64bitMatch {
+		return false
+	}
+
+	for _, filter := range p.filters {
+
+		if ok := filter.MatchString(source); !ok {
+			return false
+		}
+
+	}
+
+	return true
+}
+
+func (p *PostgreSqlMatchFilter) build(filters []string) error {
+	for _, filter := range filters {
+
+		val, ok := shortFilters[filter]
+
+		if !ok {
+			return fmt.Errorf("unknown <%s> filter", filter)
+		}
+
+		p.filters = append(p.filters, regexp.MustCompile(val))
+
+	}
+
+	return nil
 }
 
 func GetProjectIDByAlias(alias string) string {
@@ -98,7 +142,7 @@ func NewFileFilter(project string, filter string) (FileFilter, error) {
 	case Platform83Project:
 		return newPlatformMatchFilter(filter)
 	case PostgreSQLProject:
-		return newPlatformMatchFilter(filter)
+		return newPostgreSQLFilter(filter)
 	case EDTProject:
 		return newEdtFilter(filter)
 	default:
@@ -115,6 +159,33 @@ func NewFileFilterMust(project string, filter string) FileFilter {
 	}
 
 	return newFilter
+}
+
+// deb.x64@14.1-2.1C
+// "Дистрибутив СУБД PostgreSQL для Linux x86 (64-bit) (дополнительные модули) одним архивом (DEB)",
+// "/version_file?nick=AddCompPostgre&ver=14.1-2.1C&path=AddCompPostgre%5c14_1_2_1C%5cpostgresql_14.1_2.1C_amd64_addon_deb.tar.bz2",
+func newPostgreSQLFilter(filter string) (*PostgreSqlMatchFilter, error) {
+	m := &PostgreSqlMatchFilter{
+		x64bitMatch:  false,
+		x64bitRegexp: x64Regexp,
+	}
+
+	filters := strings.Split(filter, ".")
+	filters = removeFromFilter(filters, "x32")
+
+	if ok := dry.StringInSlice("x64", filters); ok {
+		filters = removeFromFilter(filters, "x64")
+		m.x64bitMatch = true
+	}
+
+	// Для Windows если стоит только фильтр по нему и другого нет, то установим для платформы скачиваем полного дистрибутива
+	if ok := dry.StringInSlice("win", filters) || dry.StringInSlice("windows", filters); ok && len(filters) == 1 {
+		filters = append(filters, "full")
+	}
+
+	err := m.build(filters)
+
+	return m, err
 }
 
 func newPlatformMatchFilter(filter string) (*PlatformMatchFilter, error) {
@@ -188,13 +259,6 @@ func removeFromFilter(s []string, r string) []string {
 		}
 	}
 	return s
-}
-
-type EdtMatchFilter struct {
-	filters        []*regexp.Regexp
-	matchOffline   bool
-	matchOfflineRe []*regexp.Regexp
-	distrRe        []*regexp.Regexp
 }
 
 func newEdtFilter(filter string) (*EdtMatchFilter, error) {

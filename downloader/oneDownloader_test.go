@@ -41,7 +41,8 @@ func Test_filterReleaseFiles(t *testing.T) {
 				},
 			},
 			2,
-		}, {
+		},
+		{
 			"DevelopmentTools10 with Bellsoft JDK",
 			args{
 				list: []ReleaseFileInfo{
@@ -61,11 +62,12 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust("DevelopmentTools10", "deb"),
+					NewFileFilterMust(EDTProject, "deb"),
 				},
 			},
 			1,
-		}, {
+		},
+		{
 			"DevelopmentTools10 with Bellsoft JDK",
 			args{
 				list: []ReleaseFileInfo{
@@ -85,11 +87,12 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust("DevelopmentTools10", "deb"),
+					NewFileFilterMust(EDTProject, "deb"),
 				},
 			},
 			2,
-		}, {
+		},
+		{
 			"DevelopmentTools10 only Bellsoft JDK",
 			args{
 				list: []ReleaseFileInfo{
@@ -109,11 +112,12 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust("DevelopmentTools10", "deb.jdk.x64"),
+					NewFileFilterMust(EDTProject, "deb.jdk.x64"),
 				},
 			},
 			1,
-		}, {
+		},
+		{
 			"PosqtreSQL with 14.1-2.1C",
 			args{
 				list: []ReleaseFileInfo{
@@ -135,7 +139,7 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust(PostgreSQLProject, "deb.x64@14.1-2.1C"),
+					NewFileFilterMust(PostgreSQLProject, "deb.x64"),
 				},
 			},
 			2,
