@@ -41,7 +41,8 @@ func Test_filterReleaseFiles(t *testing.T) {
 				},
 			},
 			2,
-		}, {
+		},
+		{
 			"DevelopmentTools10 with Bellsoft JDK",
 			args{
 				list: []ReleaseFileInfo{
@@ -61,11 +62,12 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust("DevelopmentTools10", "deb"),
+					NewFileFilterMust(EDTProject, "deb"),
 				},
 			},
 			1,
-		}, {
+		},
+		{
 			"DevelopmentTools10 with Bellsoft JDK",
 			args{
 				list: []ReleaseFileInfo{
@@ -85,11 +87,12 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust("DevelopmentTools10", "deb"),
+					NewFileFilterMust(EDTProject, "deb"),
 				},
 			},
 			2,
-		}, {
+		},
+		{
 			"DevelopmentTools10 only Bellsoft JDK",
 			args{
 				list: []ReleaseFileInfo{
@@ -109,11 +112,12 @@ func Test_filterReleaseFiles(t *testing.T) {
 					},
 				},
 				filters: []FileFilter{
-					NewFileFilterMust("DevelopmentTools10", "deb.jdk.x64"),
+					NewFileFilterMust(EDTProject, "deb.jdk.x64"),
 				},
 			},
 			1,
-		}, {
+		},
+		{
 			"PosqtreSQL with 14.1-2.1C",
 			args{
 				list: []ReleaseFileInfo{
@@ -156,6 +160,8 @@ func TestOnegetDownloader_Platform_getFilesExist(t *testing.T) {
 	versions := []string{
 		"8.3.21.1302",
 		"8.3.21.1302",
+		"8.3.22.1672",
+		"8.3.21.1607",
 	}
 	for _, ver := range versions {
 		assert.True(t, releaseExist(t, platform, ver))
@@ -163,15 +169,15 @@ func TestOnegetDownloader_Platform_getFilesExist(t *testing.T) {
 
 }
 
+// На текущий момент тест не актуален, так как релизы все доступны
 func TestOnegetDownloader_Platform_getFilesNotExist(t *testing.T) {
 	platform := "Platform83"
 	// Список существующих платформ
 	versions := []string{
 		"8.3.22.1672",
-		"8.3.21.1607",
 	}
 	for _, ver := range versions {
-		assert.False(t, releaseExist(t, platform, ver))
+		assert.True(t, releaseExist(t, platform, ver))
 	}
 }
 
