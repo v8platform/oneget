@@ -2,7 +2,6 @@ package downloader
 
 import (
 	"fmt"
-	"go.uber.org/multierr"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -11,13 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"go.uber.org/multierr"
 )
 
-type GetConfig struct {
-	BasePath string
-	Project  string
-	Version  VersionFilter
-	Filters  []FileFilter
+type DownloadConfig struct {
+	BasePath          string
+	Project           string
+	Version           VersionFilter
+	Filters           []FileFilter
+	AdditionalFilters []FileFilter
 }
 
 type FileToDownload struct {
@@ -55,7 +57,7 @@ func NewDownloader(login, password string) *OnegetDownloader {
 
 }
 
-func (dr *OnegetDownloader) Get(config ...GetConfig) ([]string, error) {
+func (dr *OnegetDownloader) Get(downloadConfigs ...DownloadConfig) ([]string, error) {
 
 	client, err := NewClient(loginURL, releasesURL, dr.Login, dr.Password)
 	if err != nil {
@@ -68,8 +70,8 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]string, error) {
 
 	downloadCh := make(chan *FileToDownload, 100)
 
-	for _, getConfig := range config {
-		err := dr.getFiles(getConfig, downloadCh)
+	for _, downloadConfig := range downloadConfigs {
+		err := dr.getFiles(downloadConfig, downloadCh)
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +113,7 @@ func (dr *OnegetDownloader) Get(config ...GetConfig) ([]string, error) {
 
 }
 
-func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDownload) error {
+func (dr *OnegetDownloader) getFiles(config DownloadConfig, downloadCh chan *FileToDownload) error {
 
 	releases, err := dr.getProjectReleases(config)
 	if err != nil {
@@ -120,7 +122,7 @@ func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDo
 
 	for _, release := range releases {
 		dr.wg.Add(1)
-		go func(info *ProjectVersionInfo, cfg GetConfig) {
+		go func(info *ProjectVersionInfo, cfg DownloadConfig) {
 			_ = dr.getReleaseFiles(info, config, downloadCh)
 			dr.wg.Done()
 		}(release, config)
@@ -129,7 +131,7 @@ func (dr *OnegetDownloader) getFiles(config GetConfig, downloadCh chan *FileToDo
 	return nil
 }
 
-func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config GetConfig, downloadCh chan *FileToDownload) error {
+func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config DownloadConfig, downloadCh chan *FileToDownload) error {
 
 	client := dr.client
 	resp, err := client.Get(releasesURL + release.Url)
@@ -144,7 +146,7 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 	if err != nil {
 		return err
 	}
-	files := filterReleaseFiles(releaseFiles, config.Filters)
+	files := filterReleaseFiles(releaseFiles, config.Filters, config.AdditionalFilters)
 
 	var merr error
 
@@ -162,7 +164,7 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 
 }
 
-func (dr *OnegetDownloader) getProjectReleases(config GetConfig) ([]*ProjectVersionInfo, error) {
+func (dr *OnegetDownloader) getProjectReleases(config DownloadConfig) ([]*ProjectVersionInfo, error) {
 
 	resp, err := dr.client.Get(projectHrefPrefix + config.Project)
 	if err != nil {
@@ -179,26 +181,40 @@ func (dr *OnegetDownloader) getProjectReleases(config GetConfig) ([]*ProjectVers
 	return filterProjectVersionInfo(releases, config.Version), nil
 
 }
-func filterReleaseFiles(list []ReleaseFileInfo, filters []FileFilter) (filteredList []ReleaseFileInfo) {
+func filterReleaseFiles(list []ReleaseFileInfo, filters []FileFilter, additionalFilters []FileFilter) (filteredList []ReleaseFileInfo) {
 
 	if len(filters) == 0 || len(list) == 0 {
 		return list
 	}
 
 	matchInfo := func(i ReleaseFileInfo) bool {
+		match := false
 
 		for _, filter := range filters {
 
 			matchName := filter.MatchString(i.name)
 			matchUrl := filter.MatchString(i.url)
-
 			if matchName || matchUrl {
-				return true
+				match = true
+				break
+			}
+		}
+
+		needMatchAdditional := match && len(additionalFilters) != 0
+		// если проверять по доп. фильтрам не надо, то считаем, что по ним есть совпадение
+		matchAdditional := !needMatchAdditional
+		if needMatchAdditional {
+
+			for _, addFilter := range additionalFilters {
+				matchUrl := addFilter.MatchString(i.url)
+				if matchUrl {
+					matchAdditional = true
+				}
 			}
 
 		}
 
-		return false
+		return match && matchAdditional
 	}
 
 	for _, info := range list {
@@ -230,7 +246,7 @@ func (dr *OnegetDownloader) getClient() *http.Client {
 	}
 }
 
-func (dr *OnegetDownloader) addFileToChannel(href string, config GetConfig, downloadCh chan *FileToDownload) (err error) {
+func (dr *OnegetDownloader) addFileToChannel(href string, config DownloadConfig, downloadCh chan *FileToDownload) (err error) {
 
 	downloadHref := []string{releasesURL + href}
 
@@ -375,7 +391,7 @@ func (dr *OnegetDownloader) handleError(err error) {
 	log.Error(err.Error())
 }
 
-func (dr *OnegetDownloader) getDownloadFileLinks(href string, _ GetConfig) ([]string, error) {
+func (dr *OnegetDownloader) getDownloadFileLinks(href string, _ DownloadConfig) ([]string, error) {
 
 	client := dr.client
 	resp, err := client.Get(href)
