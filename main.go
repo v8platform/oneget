@@ -42,8 +42,8 @@ func setFlags() []cli.Flag {
 		},
 		&cli.StringFlag{
 			Name:        "logs",
-			DefaultText: "oneget.logs",
-			Value:       "oneget.logs",
+			DefaultText: "oneget.log",
+			Value:       "oneget.log",
 			Usage:       "Файл лога загрузки",
 		},
 		&cli.BoolFlag{
