@@ -1,11 +1,12 @@
 package downloader
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"reflect"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_filterReleaseFiles(t *testing.T) {
@@ -186,7 +187,7 @@ func getAuth(t *testing.T) (string, string) {
 	pwd := os.Getenv("Password")
 
 	if login == "" || pwd == "" {
-		t.Skipf("Параметры авторизации на https://releases.1c.eu не заданы. тест пропускаем")
+		t.Skipf("Параметры авторизации на https://releases.1c.ru не заданы. тест пропускаем")
 	}
 	return login, pwd
 }
