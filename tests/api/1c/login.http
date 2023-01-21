@@ -1,14 +1,14 @@
 # Возвращает тикет аутентификации пользователя на портале поддержки.
 # Возвращенный тикет может быть проверен вызовом операции checkTicket()
 # сервиса https://login.1c.ru/api/public/ticket?wsdl или
-# https://login.1c.eu/api/public/ticket?wsdl.
+# https://login.1c.ru/api/public/ticket?wsdl.
 # Получение тикета выполняется в соответствии с настройками
 # библиотеки:
-# доменная зона серверов (1c.ru или 1c.eu);
+# доменная зона серверов (1c.ru или 1c.ru);
 
 ### Получение тикета 1С
 
-POST https://login.1c.eu/rest/public/ticket/get
+POST https://login.1c.ru/rest/public/ticket/get
 Content-Type: application/json
 
 {
