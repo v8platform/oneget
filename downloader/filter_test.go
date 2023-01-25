@@ -10,16 +10,6 @@ import (
 
 func TestMatchFilter_Match(t *testing.T) {
 
-	type args struct {
-		filters string
-		project string
-	}
-
-	type want struct {
-		source string
-		want   bool
-	}
-
 	tests := []struct {
 		filters string
 		project string
@@ -263,8 +253,6 @@ func TestLatestVersionFilter_Filter(t *testing.T) {
 }
 
 func Test_compareVersion(t *testing.T) {
-	type args struct {
-	}
 	tests := []struct {
 		v1   string
 		v2   string

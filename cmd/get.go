@@ -2,17 +2,17 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/khorevaa/logos"
-	server "github.com/v8platform/oneget/http-server"
-	"github.com/v8platform/oneget/unpacker"
-	"go.uber.org/multierr"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/khorevaa/logos"
+	server "github.com/v8platform/oneget/http-server"
+	"github.com/v8platform/oneget/unpacker"
+	"go.uber.org/multierr"
 
 	"github.com/urfave/cli/v2"
 	dloader "github.com/v8platform/oneget/downloader"
@@ -291,7 +291,7 @@ func (c *getCmd) extractFiles(files []string) error {
 }
 
 func renameFiles(dir string) error {
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		log.Errorf("Error find files in dir <%s> to rename: %s", dir, err.Error())
 		return err

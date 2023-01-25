@@ -2,12 +2,12 @@ package unpacker
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestUnpackTarGz(t *testing.T) {
@@ -16,7 +16,7 @@ func TestUnpackTarGz(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	path := filepath.Join("fixtures", "linux", "client")
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		log.Error(err.Error())
 	}
@@ -28,7 +28,7 @@ func TestUnpackTarGz(t *testing.T) {
 		fileGZ := fileName[:len(fileName)-len(filepath.Ext(fileName))]
 		dirName := fileGZ[:len(fileGZ)-len(filepath.Ext(fileGZ))]
 
-		files, err := ioutil.ReadDir(filepath.Join(tempDir, dirName))
+		files, err := os.ReadDir(filepath.Join(tempDir, dirName))
 		if err != nil {
 			log.Error(err.Error())
 		}
@@ -100,7 +100,7 @@ func getExpectedName() map[string]string {
 }
 
 func getTempDir() (string, error) {
-	dir, err := ioutil.TempDir("", "oneget")
+	dir, err := os.MkdirTemp("", "oneget")
 	if err != nil {
 		log.Error(err.Error())
 	}

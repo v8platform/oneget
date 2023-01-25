@@ -2,15 +2,15 @@ package downloader
 
 import (
 	"fmt"
-	"go.uber.org/multierr"
 	"io"
-	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"go.uber.org/multierr"
 )
 
 type GetConfig struct {
@@ -34,8 +34,7 @@ type OnegetDownloader struct {
 
 	client *Client
 
-	urlCh chan *FileToDownload
-	wg    *sync.WaitGroup
+	wg *sync.WaitGroup
 
 	parser *HtmlParser
 }
@@ -223,13 +222,6 @@ func filterProjectVersionInfo(list []*ProjectVersionInfo, filter VersionFilter) 
 
 }
 
-func (dr *OnegetDownloader) getClient() *http.Client {
-	return &http.Client{
-		Jar:       dr.cookie,
-		Transport: nil,
-	}
-}
-
 func (dr *OnegetDownloader) addFileToChannel(href string, config GetConfig, downloadCh chan *FileToDownload) (err error) {
 
 	downloadHref := []string{releasesURL + href}
@@ -366,13 +358,6 @@ func SaveToFile(reader io.ReadCloser, fileName string) error {
 	}
 
 	return nil
-}
-
-func (dr *OnegetDownloader) handleError(err error) {
-	if err == nil {
-		return
-	}
-	log.Error(err.Error())
 }
 
 func (dr *OnegetDownloader) getDownloadFileLinks(href string, _ GetConfig) ([]string, error) {

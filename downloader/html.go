@@ -2,10 +2,11 @@ package downloader
 
 import (
 	"fmt"
-	"github.com/PuerkitoBio/goquery"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type HtmlParser struct {
@@ -52,12 +53,7 @@ func (p *HtmlParser) ParseTotalReleases(body io.Reader) (rows []ProjectInfo, err
 
 	doc.Find(p.ReleaseTableSelector).Each(func(i int, html *goquery.Selection) {
 		tableHtml = html
-		return
 	})
-
-	if tableHtml == nil {
-		return
-	}
 
 	return parseReleasesTable(tableHtml), nil
 
@@ -74,7 +70,6 @@ func (p *HtmlParser) ParseProjectReleases(body io.Reader) (rows []*ProjectVersio
 
 	doc.Find(p.ProjectTableSelector).Each(func(i int, html *goquery.Selection) {
 		tableHtml = html
-		return
 	})
 
 	if tableHtml == nil {
@@ -165,7 +160,7 @@ func parseReleasesTable(s *goquery.Selection) (rows []ProjectInfo) {
 
 			info.Name = strings.TrimSpace(releaseRow.Find(".nameColumn").Text())
 			info.Url, _ = releaseRow.Find(".nameColumn a").Attr("href")
-			info.ID = strings.TrimLeft(info.Url, "/project/")
+			info.ID = strings.TrimSuffix(info.Url, "/project/")
 
 			releaseRow.Find("td").Each(func(i int, rowHtml *goquery.Selection) {
 
