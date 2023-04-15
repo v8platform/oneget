@@ -2,34 +2,37 @@ package downloader
 
 import (
 	"fmt"
-	"github.com/xelaj/go-dry"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xelaj/go-dry"
 )
 
 const (
 	Platform83Project = "Platform83"
 	EDTProject        = "DevelopmentTools10"
 	PostgreSQLProject = "AddCompPostgre"
+	ExecutorProject   = "Executor"
 )
 const (
-	x64re     = "(?smU)(?:64-bit|64 бит).*"
-	rpmre     = "(?smU)(?:RPM|ОС Linux|для Linux$|tar.bz2).*"
-	debre     = "(?smU)(?:DEB|ОС Linux|для Linux$|tar.bz2).*"
-	linuxre   = "(?smU)(?:LINUX|ОС Linux|для Linux$|tar.bz2).*"
-	windowsre = "(?smU)(?:Windows|ОС Windows|zip).*"
-	osxre     = "(?smU)(?:OS X|macOS|MacOS|ОС macOS).*"
-	clientre  = "(?smU)Клиент"
-	serverre  = "(?smU)(?:Cервер|Сервер)"
-	thinre    = "(?smU)Тонкий клиент"
-	fullre    = "(?smU)Технологическая платформа"
+	x64re      = "(?smU)(?:64-bit|64 бит).*"
+	rpmre      = "(?smU)(?:RPM|ОС Linux|для Linux$|tar.bz2).*"
+	debre      = "(?smU)(?:DEB|ОС Linux|для Linux$|tar.bz2).*"
+	linuxre    = "(?smU)(?:LINUX|ОС Linux|для Linux$|Linux|tar.bz2).*"
+	windowsre  = "(?smU)(?:Windows|ОС Windows|zip).*"
+	osxre      = "(?smU)(?:OS X|macOS|MacOS|ОС macOS).*"
+	clientre   = "(?smU)Клиент"
+	serverre   = "(?smU)(?:Cервер|Сервер)"
+	thinre     = "(?smU)Тонкий клиент"
+	fullre     = "(?smU)Технологическая платформа"
+	executorre = "(?smU)Дистрибутив 1С:Исполнитель"
 )
 
 /*
 
-	Специальные фильтры для платформы и ряда других приложение
+	Специальные фильтры для платформы и ряда других приложений
 
 	platform:thin.mac@latest
 	platform:full.win.x64@latest
@@ -63,6 +66,8 @@ var (
 		"online":      "edt.online",
 		"jdk":         "edt.jdk",
 		"full":        fullre,
+		"u":           `(\(U\).*)`,
+		"x":           `(\(X\).*)`,
 	}
 
 	x64Regexp = regexp.MustCompile(x64re)
@@ -92,6 +97,10 @@ type PostgreSqlMatchFilter struct {
 	filters      []*regexp.Regexp
 	x64bitMatch  bool
 	x64bitRegexp *regexp.Regexp
+}
+
+type ExecutorMatchFilter struct {
+	filters []*regexp.Regexp
 }
 
 func (p PostgreSqlMatchFilter) MatchString(source string) bool {
@@ -145,6 +154,8 @@ func NewFileFilter(project string, filter string) (FileFilter, error) {
 		return newPostgreSQLFilter(filter)
 	case EDTProject:
 		return newEdtFilter(filter)
+	case ExecutorProject:
+		return newExecutorFilter(filter)
 	default:
 		return nil, fmt.Errorf("unknown filter builder for project <%s>", project)
 	}
@@ -178,11 +189,6 @@ func newPostgreSQLFilter(filter string) (*PostgreSqlMatchFilter, error) {
 		m.x64bitMatch = true
 	}
 
-	// Для Windows если стоит только фильтр по нему и другого нет, то установим для платформы скачиваем полного дистрибутива
-	if ok := dry.StringInSlice("win", filters) || dry.StringInSlice("windows", filters); ok && len(filters) == 1 {
-		filters = append(filters, "full")
-	}
-
 	err := m.build(filters)
 
 	return m, err
@@ -203,7 +209,7 @@ func newPlatformMatchFilter(filter string) (*PlatformMatchFilter, error) {
 		m.x64bitMatch = true
 	}
 
-	// Для Windows если стоит только фильтр по нему и другого нет, то установим для платформы скачиваем полного дистрибутива
+	// Для Windows если стоит только фильтр по нему и другого нет, то скачаем полный дистрибутив
 	if ok := dry.StringInSlice("win", filters) || dry.StringInSlice("windows", filters); ok && len(filters) == 1 {
 		filters = append(filters, "full")
 	}
@@ -295,7 +301,45 @@ func newEdtFilter(filter string) (*EdtMatchFilter, error) {
 	return m, err
 }
 
+func newExecutorFilter(filter string) (*ExecutorMatchFilter, error) {
+	m := &ExecutorMatchFilter{}
+
+	filters := strings.Split(filter, ".")
+
+	if ok := dry.StringInSlice("u", filters); ok {
+		filters = removeFromFilter(filters, "win")
+		filters = removeFromFilter(filters, "windows")
+		filters = removeFromFilter(filters, "linux")
+	}
+
+	err := m.build(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, err
+}
+
 func (m *EdtMatchFilter) build(filters []string) error {
+
+	for _, filter := range filters {
+
+		val, ok := shortFilters[filter]
+
+		if !ok {
+			return fmt.Errorf("unknown <%s> filter", filter)
+		}
+
+		m.filters = append(m.filters, regexp.MustCompile(val))
+
+	}
+
+	return nil
+}
+
+func (m *ExecutorMatchFilter) build(filters []string) error {
+
+	m.filters = append(m.filters, regexp.MustCompile(executorre))
 
 	for _, filter := range filters {
 
@@ -355,6 +399,19 @@ func (m *EdtMatchFilter) MatchString(source string) bool {
 		}
 
 		if m.matchOffline && !offlineDistr {
+			return false
+		}
+
+	}
+
+	return true
+}
+
+func (m *ExecutorMatchFilter) MatchString(source string) bool {
+
+	for _, filter := range m.filters {
+
+		if ok := filter.MatchString(source); !ok {
 			return false
 		}
 
