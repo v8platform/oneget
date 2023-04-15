@@ -11,8 +11,9 @@ import (
 
 func Test_filterReleaseFiles(t *testing.T) {
 	type args struct {
-		list    []ReleaseFileInfo
-		filters []FileFilter
+		list              []ReleaseFileInfo
+		filters           []FileFilter
+		additionalFilters []FileFilter
 	}
 	tests := []struct {
 		name             string
@@ -145,10 +146,36 @@ func Test_filterReleaseFiles(t *testing.T) {
 			},
 			2,
 		},
+		{
+			"Platform83Project with --filter",
+			args{
+				list: []ReleaseFileInfo{
+					{
+						"Тонкий клиент 1С:Предприятия для Linux",
+						"/version_file?nick=Platform83&ver=8.3.20.2180&path=Platform%5C8_3_20_2180%5Cthin.client32_8_3_20_2180.tar.gz",
+					},
+					{
+						"Технологическая платформа 1С:Предприятия (64-bit) для Windows",
+						"https://releases.1c.ru/https://releases.1c.ru/version_file?nick=Platform83&ver=8.3.20.2180&path=Platform%5C8_3_20_2180%5Cwindows64full_8_3_20_2180.rar",
+					},
+					{
+						"Технологическая платформа 1С:Предприятия (64-bit) для Windows + Тонкий клиент для Windows, Linux и MacOS для автоматического обновления клиентов через веб-сервер",
+						"https://releases.1c.ru/version_file?nick=Platform83&ver=8.3.21.1302&path=Platform%5С8_3_21_1302%5Сwindows64full_with_all_clients_8_3_21_1302.rar",
+					},
+				},
+				filters: []FileFilter{
+					NewFileFilterMust(Platform83Project, "win.full.x64"),
+				},
+				additionalFilters: []FileFilter{
+					regexp.MustCompile("windows64full_8"),
+				},
+			},
+			1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if gotFilteredList := filterReleaseFiles(tt.args.list, tt.args.filters); !reflect.DeepEqual(len(gotFilteredList), tt.wantFilteredList) {
+			if gotFilteredList := filterReleaseFiles(tt.args.list, tt.args.filters, tt.args.additionalFilters); !reflect.DeepEqual(len(gotFilteredList), tt.wantFilteredList) {
 				t.Errorf("filterReleaseFiles() = %v, want %v", len(gotFilteredList), tt.wantFilteredList)
 			}
 		})
@@ -201,10 +228,11 @@ func releaseExist(t *testing.T, platform string, ver string) bool {
 	dl.client, _ = NewClient(loginURL, releasesURL, login, pwd)
 
 	versionFilter, _ := NewVersionFilter("", ver)
-	config := GetConfig{
-		Project: platform,
-		Version: versionFilter,
-		Filters: nil,
+	config := DownloadConfig{
+		Project:           platform,
+		Version:           versionFilter,
+		Filters:           nil,
+		AdditionalFilters: nil,
 	}
 	releases, _ := dl.getProjectReleases(config)
 	return len(releases) != 0

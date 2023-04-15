@@ -2,10 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/khorevaa/logos"
-	server "github.com/v8platform/oneget/http-server"
-	"github.com/v8platform/oneget/unpacker"
-	"go.uber.org/multierr"
 	"io/ioutil"
 	"os"
 	"path"
@@ -13,6 +9,11 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/khorevaa/logos"
+	server "github.com/v8platform/oneget/http-server"
+	"github.com/v8platform/oneget/unpacker"
+	"go.uber.org/multierr"
 
 	"github.com/urfave/cli/v2"
 	dloader "github.com/v8platform/oneget/downloader"
@@ -52,16 +53,18 @@ func (c *getCmd) run(ctx *cli.Context) error {
 	}
 
 	releases := getMapFromStrings(c.releases, "@", "latest")
-	filtersStr := getFilters(c.Filter.Value(), "=", "")
+	additionalFilterStr := getAdditionalFilters(c.Filter.Value(), "=", "")
 
-	var downloads []dloader.GetConfig
+	var downloadConfigs []dloader.DownloadConfig
 
 	for project, version := range releases {
 
 		projectIdAlias := getProjectId(project)
 
 		projectId := dloader.GetProjectIDByAlias(projectIdAlias)
-		projectFilters := compileFilters(filtersStr[projectId]...)
+		additionalFilters := compileFilters(additionalFilterStr[projectIdAlias]...)
+
+		var projectFilters []dloader.FileFilter
 
 		if fileFilter, err := getProjectFilter(project); err != nil {
 			log.Errorf("error get project <%s> file filter: %s", projectIdAlias, err.Error())
@@ -75,11 +78,12 @@ func (c *getCmd) run(ctx *cli.Context) error {
 			return err
 		}
 
-		downloads = append(downloads, dloader.GetConfig{
-			BasePath: getAbsolutePath(c.BaseDir),
-			Project:  projectId,
-			Version:  versionFilter,
-			Filters:  projectFilters,
+		downloadConfigs = append(downloadConfigs, dloader.DownloadConfig{
+			BasePath:          getAbsolutePath(c.BaseDir),
+			Project:           projectId,
+			Version:           versionFilter,
+			Filters:           projectFilters,
+			AdditionalFilters: additionalFilters,
 		})
 	}
 
@@ -89,14 +93,14 @@ func (c *getCmd) run(ctx *cli.Context) error {
 		c.Password,
 	)
 
-	files, errGet := dl.Get(downloads...)
+	files, errGet := dl.Get(downloadConfigs...)
 	if errGet != nil {
 		err = multierr.Append(err, errGet)
 	}
 	if err != nil {
 		return err
 	}
-	log.Infof("Downloaded <%d> releases, files <%d>", len(downloads), len(files))
+	log.Infof("Downloaded <%d> releases, files <%d>", len(downloadConfigs), len(files))
 
 	if c.Extract {
 		err := c.extractFiles(files)
@@ -336,7 +340,7 @@ func getMapFromStrings(arr []string, sep string, defValue string) map[string]str
 	return result
 }
 
-func getFilters(arr []string, sep string, defValue string) map[string][]string {
+func getAdditionalFilters(arr []string, sep string, defValue string) map[string][]string {
 
 	result := make(map[string][]string)
 

@@ -2,11 +2,12 @@ package downloader
 
 import (
 	"fmt"
-	"github.com/xelaj/go-dry"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/xelaj/go-dry"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 
 /*
 
-	Специальные фильтры для платформы и ряда других приложение
+	Специальные фильтры для платформы и ряда других приложений
 
 	platform:thin.mac@latest
 	platform:full.win.x64@latest
@@ -203,7 +204,7 @@ func newPlatformMatchFilter(filter string) (*PlatformMatchFilter, error) {
 		m.x64bitMatch = true
 	}
 
-	// Для Windows если стоит только фильтр по нему и другого нет, то установим для платформы скачиваем полного дистрибутива
+	// Для Windows если стоит только фильтр по нему и другого нет, то скачаем полный дистрибутив
 	if ok := dry.StringInSlice("win", filters) || dry.StringInSlice("windows", filters); ok && len(filters) == 1 {
 		filters = append(filters, "full")
 	}
