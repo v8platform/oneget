@@ -20,6 +20,7 @@ var log = logos.New("github.com/v8platform/oneget/downloader").Sugar()
 
 const (
 	projectHrefPrefix = "/project/"
+	projectHrefSuffix = "?allUpdates=true"
 	tempFileSuffix    = ".d1c"
 )
 
