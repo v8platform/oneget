@@ -166,7 +166,7 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 
 func (dr *OnegetDownloader) getProjectReleases(config DownloadConfig) ([]*ProjectVersionInfo, error) {
 
-	resp, err := dr.client.Get(projectHrefPrefix + config.Project)
+	resp, err := dr.client.Get(projectHrefPrefix + config.Project + projectHrefSuffix)
 	if err != nil {
 		return nil, err
 	}
