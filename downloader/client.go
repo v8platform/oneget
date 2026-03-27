@@ -2,11 +2,12 @@ package downloader
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -24,6 +25,8 @@ const (
 	tempFileSuffix    = ".d1c"
 )
 
+var executionRe = regexp.MustCompile(`name="execution"\s+value="([^"]+)"`)
+
 func NewClient(loginUrl string, baseUrl string, login string, password string) (*Client, error) {
 
 	cj, _ := cookiejar.New(nil)
@@ -36,16 +39,10 @@ func NewClient(loginUrl string, baseUrl string, login string, password string) (
 		cookie:   cj,
 	}
 
-	url, err := c.getAuthTicketURL(baseUrl)
+	err := c.casLogin()
 	if err != nil {
 		return nil, err
 	}
-
-	loginResp, err := c.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer loginResp.Body.Close()
 
 	return c, nil
 }
@@ -58,74 +55,75 @@ type Client struct {
 	baseUrl  string
 }
 
-func (c *Client) getAuthTicketURL(url string) (string, error) {
+// casLogin выполняет аутентификацию через CAS form-based login.
+// 1. GET login page — получить execution token и session cookies
+// 2. POST login form — аутентификация и установка CAS cookies
+func (c *Client) casLogin() error {
+	serviceURL := c.baseUrl + "/public/security_check"
+	casLoginURL := c.loginUrl + "/login?service=" + url.QueryEscape(serviceURL)
 
-	type loginParams struct {
-		Login       string `json:"login"`
-		Password    string `json:"password"`
-		ServiceNick string `json:"serviceNick"`
-	}
-
-	type ticket struct {
-		Ticket string `json:"ticket"`
-	}
-
-	ticketUrl := c.loginUrl + "/rest/public/ticket/get"
-	postBody, err := json.Marshal(
-		loginParams{c.login, c.password, url})
+	// Шаг 1: GET страницу логина для получения execution token
+	log.Debugf("CAS login: getting login page from %s", casLoginURL)
+	req, err := http.NewRequest("GET", casLoginURL, nil)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("CAS login: create request error: %s", err.Error())
 	}
 
-	buf := bytes.NewBuffer(postBody)
-	defer put(buf)
-	req, err := http.NewRequest("POST", ticketUrl, buf)
-
-	if err != nil {
-		return "", err
-	}
-
-	req.SetBasicAuth(c.login, c.password)
-	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.doRequest(req)
-
 	if err != nil {
-		return "", err
+		return fmt.Errorf("CAS login: get login page error: %s", err.Error())
 	}
-
 	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-
-		var ticketData ticket
-		err := bodyToJSON(resp.Body, &ticketData)
-		if err != nil {
-			return "", err
-		}
-
-		return fmt.Sprintf(loginURL+"/ticket/auth?token=%s", ticketData.Ticket), nil
-
-	default:
-
-		type ErrorRespond struct {
-			Timestamp string `json:"timestamp"`
-			Status    int    `json:"status"`
-			Error     string `json:"error"`
-			Exception string `json:"exception"`
-			Message   string `json:"message"`
-			Path      string `json:"path"`
-		}
-
-		var errData ErrorRespond
-
-		err := bodyToJSON(resp.Body, &errData)
-		if err != nil {
-			return "", err
-		}
-
-		return "", fmt.Errorf("%s: %s", errData.Error, errData.Message)
+	body, err := readBody(resp.Body)
+	if err != nil {
+		return fmt.Errorf("CAS login: read login page error: %s", err.Error())
 	}
+
+	matches := executionRe.FindSubmatch(body)
+	if matches == nil {
+		return fmt.Errorf("CAS login: execution token not found on login page")
+	}
+	executionToken := string(matches[1])
+	log.Debugf("CAS login: got execution token (length=%d)", len(executionToken))
+
+	// Шаг 2: POST form с credentials
+	formData := url.Values{
+		"username":   {c.login},
+		"password":   {c.password},
+		"execution":  {executionToken},
+		"_eventId":   {"submit"},
+		"geolocation": {""},
+	}
+
+	req, err = http.NewRequest("POST", casLoginURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return fmt.Errorf("CAS login: create POST request error: %s", err.Error())
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp2, err := c.doRequest(req)
+	if err != nil {
+		return fmt.Errorf("CAS login: POST error: %s", err.Error())
+	}
+	defer resp2.Body.Close()
+
+	// Проверяем что аутентификация прошла — финальный URL не должен быть страницей логина
+	finalURL := resp2.Request.URL.String()
+	log.Debugf("CAS login: final URL after auth: %s", finalURL)
+
+	if strings.Contains(finalURL, "login.1c.ru/login") {
+		// Читаем тело чтобы проверить ошибку
+		body2, _ := readBody(resp2.Body)
+		if strings.Contains(string(body2), "Неверный логин или пароль") ||
+			strings.Contains(string(body2), "Incorrect login or password") {
+			return fmt.Errorf("CAS login: неверный логин или пароль")
+		}
+		return fmt.Errorf("CAS login: аутентификация не удалась, финальный URL: %s", finalURL)
+	}
+
+	log.Debugf("CAS login: authenticated successfully")
+	return nil
 }
 
 func (c *Client) Get(getUrl string) (*http.Response, error) {
@@ -141,8 +139,6 @@ func (c *Client) Get(getUrl string) (*http.Response, error) {
 		return nil, err
 	}
 
-	req.SetBasicAuth(c.login, c.password)
-
 	resp, err := c.doRequest(req)
 
 	if err != nil {
@@ -151,30 +147,26 @@ func (c *Client) Get(getUrl string) (*http.Response, error) {
 
 	switch resp.StatusCode {
 	case http.StatusUnauthorized:
-		log.Debugf("Re-authorized with ticket url: %s", getUrl)
-		url, err := c.getAuthTicketURL(getUrl)
+		log.Debugf("Re-auth required, performing CAS login again for: %s", getUrl)
+		if err := c.casLogin(); err != nil {
+			return nil, fmt.Errorf("re-auth failed: %s", err.Error())
+		}
+
+		req, err := http.NewRequest("GET", getUrl, nil)
 		if err != nil {
 			return nil, err
 		}
-
-		req, err := http.NewRequest("GET", url, nil)
-
-		if err != nil {
-			return nil, err
-		}
-
-		req.SetBasicAuth(c.login, c.password)
 
 		return c.doRequest(req)
 
 	case http.StatusBadRequest, http.StatusNotFound:
 
-		return nil, fmt.Errorf("respose CODE:%d  ERR:%s",
+		return nil, fmt.Errorf("response CODE:%d  ERR:%s",
 			resp.StatusCode, readBodyMustString(resp.Body))
 	case http.StatusOK:
 		return resp, nil
 	default:
-		return resp, fmt.Errorf("unknown respose CODE: <%d>", resp.StatusCode)
+		return resp, fmt.Errorf("unknown response CODE: <%d>", resp.StatusCode)
 	}
 
 }
@@ -190,15 +182,6 @@ func (c *Client) doRequest(req *http.Request) (*http.Response, error) {
 
 	return c.client().Do(req)
 
-}
-
-func bodyToJSON(body io.ReadCloser, into interface{}) error {
-	b, err := readBody(body)
-	if err != nil {
-		return err
-	}
-
-	return json.Unmarshal(b, into)
 }
 
 func readBody(body io.ReadCloser) ([]byte, error) {
@@ -222,6 +205,22 @@ func readBodyMustString(body io.ReadCloser) string {
 	}
 
 	return string(buf)
+}
+
+// checkResponseBody проверяет HTML-ответ на наличие страницы логина или ошибки сервера.
+func checkResponseBody(body string) error {
+	if strings.Contains(body, "<title>Личные данные</title>") ||
+		strings.Contains(body, `id="loginForm"`) {
+		return fmt.Errorf("сессия истекла, получена страница логина вместо данных")
+	}
+	if strings.Contains(body, "Ошибка на нашем сервере") ||
+		strings.Contains(body, "сервис временно недоступен") {
+		return fmt.Errorf("сервер releases.1c.ru временно недоступен")
+	}
+	if strings.Contains(body, "Ошибка доступа") {
+		return fmt.Errorf("ошибка доступа на releases.1c.ru — нет прав на данный ресурс")
+	}
+	return nil
 }
 
 var pool = sync.Pool{

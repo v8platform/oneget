@@ -177,10 +177,16 @@ func (dr *OnegetDownloader) getProjectReleases(config DownloadConfig) ([]*Projec
 		return nil, fmt.Errorf("error read project <%s> body: %s", config.Project, err.Error())
 	}
 
+	bodyStr := string(bodyBytes)
+
+	if err := checkResponseBody(bodyStr); err != nil {
+		return nil, fmt.Errorf("project <%s>: %s", config.Project, err.Error())
+	}
+
 	releases, err := dr.parser.ParseProjectReleases(bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("error parse project <%s> releases: %s, html: <%s>",
-			config.Project, err.Error(), string(bodyBytes))
+			config.Project, err.Error(), bodyStr)
 	}
 
 	return filterProjectVersionInfo(releases, config.Version), nil
