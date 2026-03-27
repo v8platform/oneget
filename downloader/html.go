@@ -165,7 +165,7 @@ func parseReleasesTable(s *goquery.Selection) (rows []ProjectInfo) {
 
 			info.Name = strings.TrimSpace(releaseRow.Find(".nameColumn").Text())
 			info.Url, _ = releaseRow.Find(".nameColumn a").Attr("href")
-			info.ID = strings.TrimLeft(info.Url, "/project/")
+			info.ID = strings.TrimPrefix(info.Url, "/project/")
 
 			releaseRow.Find("td").Each(func(i int, rowHtml *goquery.Selection) {
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -263,7 +262,7 @@ func (c *getCmd) extractFiles(files []string) error {
 
 	var mErr error
 	for _, file := range files {
-		if strings.ToLower(filepath.Ext(file)) == ".tar.gz" {
+		if !strings.HasSuffix(strings.ToLower(file), ".tar.gz") {
 			continue
 		}
 
@@ -277,14 +276,14 @@ func (c *getCmd) extractFiles(files []string) error {
 		err := unpacker.Extract(file, extractDir)
 		if err != nil {
 			log.Errorf(err.Error())
-			multierr.Append(mErr, err)
+			mErr = multierr.Append(mErr, err)
 			continue
 		}
 
 		if c.Rename {
 			err := renameFiles(extractDir)
 			if err != nil {
-				multierr.Append(mErr, err)
+				mErr = multierr.Append(mErr, err)
 				continue
 			}
 
@@ -409,5 +408,5 @@ func getAbsolutePath(p string) string {
 	if err != nil {
 		log.Errorf("Error getting current path %s", err.Error())
 	}
-	return path.Join(dir, p)
+	return filepath.Join(dir, p)
 }

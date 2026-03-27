@@ -209,7 +209,9 @@ func readBody(body io.ReadCloser) ([]byte, error) {
 		return nil, err
 	}
 
-	return buf.Bytes(), err
+	result := make([]byte, buf.Len())
+	copy(result, buf.Bytes())
+	return result, nil
 }
 
 func readBodyMustString(body io.ReadCloser) string {
