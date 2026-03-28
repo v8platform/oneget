@@ -385,11 +385,12 @@ func SaveToFile(reader io.ReadCloser, fileName string) error {
 		return err
 	}
 
-	defer reader.Close()
-	defer fd.Close()
+	_, copyErr := io.Copy(fd, reader)
+	reader.Close()
+	fd.Close()
 
-	if _, err = io.Copy(fd, reader); err != nil && err != io.EOF {
-		return err
+	if copyErr != nil && copyErr != io.EOF {
+		return copyErr
 	}
 
 	return nil
