@@ -1,6 +1,7 @@
 package downloader
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -86,22 +87,21 @@ func (dr *OnegetDownloader) Get(downloadConfigs ...DownloadConfig) ([]string, er
 	mu := &sync.Mutex{}
 	for fileToDownload := range downloadCh {
 		go func(file *FileToDownload) {
+			defer func() { <-limit }()
+			defer dr.wg.Done()
 
 			limit <- struct{}{}
 
 			filename, err := dr.downloadFile(file)
 			if err != nil {
-				dr.wg.Done()
 				log.Errorf(err.Error())
+				return
 			}
 			if len(filename) > 0 {
 				mu.Lock()
 				files = append(files, filename)
 				mu.Unlock()
 			}
-			dr.wg.Done()
-
-			<-limit
 
 		}(fileToDownload)
 
@@ -154,8 +154,8 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 
 		err := dr.addFileToChannel(file.url, config, downloadCh)
 		if err != nil {
-			log.Errorf("Error get file from <%s>: %s", err.Error())
-			multierr.Append(merr, err)
+			log.Errorf("Error get file: %s", err.Error())
+			merr = multierr.Append(merr, err)
 		}
 
 	}
@@ -166,16 +166,27 @@ func (dr *OnegetDownloader) getReleaseFiles(release *ProjectVersionInfo, config 
 
 func (dr *OnegetDownloader) getProjectReleases(config DownloadConfig) ([]*ProjectVersionInfo, error) {
 
-	resp, err := dr.client.Get(projectHrefPrefix + config.Project)
+	resp, err := dr.client.Get(projectHrefPrefix + config.Project + projectHrefSuffix)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	releases, err := dr.parser.ParseProjectReleases(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error read project <%s> body: %s", config.Project, err.Error())
+	}
+
+	bodyStr := string(bodyBytes)
+
+	if err := checkResponseBody(bodyStr); err != nil {
+		return nil, fmt.Errorf("project <%s>: %s", config.Project, err.Error())
+	}
+
+	releases, err := dr.parser.ParseProjectReleases(bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, fmt.Errorf("error parse project <%s> releases: %s, html: <%s>",
-			config.Project, err.Error(), readBodyMustString(resp.Body))
+			config.Project, err.Error(), bodyStr)
 	}
 
 	return filterProjectVersionInfo(releases, config.Version), nil
@@ -374,11 +385,12 @@ func SaveToFile(reader io.ReadCloser, fileName string) error {
 		return err
 	}
 
-	defer reader.Close()
-	defer fd.Close()
+	_, copyErr := io.Copy(fd, reader)
+	reader.Close()
+	fd.Close()
 
-	if _, err = io.Copy(fd, reader); err != nil && err != io.EOF {
-		return err
+	if copyErr != nil && copyErr != io.EOF {
+		return copyErr
 	}
 
 	return nil
